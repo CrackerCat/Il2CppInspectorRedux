@@ -51,6 +51,8 @@ namespace Il2CppInspector.Model
         // For il2cpp < 19, the key is the string literal ordinal instead of the address
         public Dictionary<ulong, string> Strings { get; } = new Dictionary<ulong, string>();
 
+        public Dictionary<ulong, string> Fields { get; } = new Dictionary<ulong, string>();
+
         public bool StringIndexesAreOrdinals => Package.Version < 19;
 
         // The .NET type model for the application
@@ -242,6 +244,16 @@ namespace Il2CppInspector.Model
                                 Methods.Add(method, fnPtr, new AppMethod(method, fnPtr) {Group = Group});
                             }
                             Methods[method].MethodInfoPtrAddress = address;
+                            break;
+
+                        case MetadataUsageType.FieldInfo:
+                            if (usage.SourceIndex > TypeModel.Package.Metadata.FieldRefs.Length)
+                                break;
+
+                            var fieldRef = TypeModel.Package.FieldRefs[usage.SourceIndex];
+                            var fieldType = TypeModel.GetMetadataUsageType(usage);
+                            var field = fieldType.DeclaredFields.First(f => f.Index == fieldType.Definition.fieldStart + fieldRef.fieldIndex);
+                            Fields.Add(usage.VirtualAddress, $"{fieldType.Name}.{field.Name}".ToCIdentifier());
                             break;
                     }
                 }

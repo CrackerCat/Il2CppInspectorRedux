@@ -95,6 +95,11 @@ def ProcessJSON(jsonData):
 	for d in jsonData['methodInfoPointers']:
 		DefineILMethodInfo(d)
 
+	# FieldInfo
+	print('Processing FieldInfo pointers')
+	for d in jsonData['fields']:
+		DefineField(d['virtualAddress'], d['name'], r"uint64_t")
+
 	# Function boundaries
 	print('Processing function boundaries')
 	functionAddresses = jsonData['functionAddresses']

@@ -41,6 +41,7 @@ namespace Il2CppInspector.Outputs
                     writeApis();
                     writeExports();
                     writeSymbols();
+                    writeFields();
                 },
                 "Address map of methods, internal functions, type pointers and string literals in the binary file"
             );
@@ -213,6 +214,20 @@ namespace Il2CppInspector.Outputs
                     });
                 }
             }, "Symbol table");
+        }
+
+        private void writeFields()
+        {
+            writeArray("fields", () =>
+            {
+                foreach (var field in model.Fields)
+                {
+                    writeObject(() =>
+                    {
+                        writeName(field.Key, field.Value);
+                    });
+                }
+            });
         }
 
         // JSON helpers
