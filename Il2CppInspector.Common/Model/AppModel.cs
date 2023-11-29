@@ -210,12 +210,18 @@ namespace Il2CppInspector.Model
 
                     switch (usage.Type) {
                         case MetadataUsageType.StringLiteral:
+                            //if (usage.SourceIndex >= TypeModel.Package.Metadata.StringLiterals.Length)
+                            //    break;
+
                             var str = TypeModel.GetMetadataUsageName(usage);
                             Strings.Add(address, str);
                             break;
 
                         case MetadataUsageType.Type:
                         case MetadataUsageType.TypeInfo:
+                            //if (usage.SourceIndex >= TypeModel.TypesByReferenceIndex.Length) 
+                            //    break;
+
                             var type = TypeModel.GetMetadataUsageType(usage);
                             declarationGenerator.IncludeType(type);
                             AddTypes(declarationGenerator.GenerateRemainingTypeDeclarations());
@@ -226,22 +232,26 @@ namespace Il2CppInspector.Model
 
                             else if (!Types.ContainsKey(type))
                                 // Generic type definition has no associated C++ type, therefore no dictionary sub-key
-                                Types.Add(type, new AppType(type, null, cppTypeRefPtr: address) {Group = Group});
+                                Types.Add(type, new AppType(type, null, cppTypeRefPtr: address) { Group = Group });
                             else
                                 // Regular type reference
                                 Types[type].TypeRefPtrAddress = address;
                             break;
                         case MetadataUsageType.MethodDef:
                         case MetadataUsageType.MethodRef:
+                            //if (usage.SourceIndex > TypeModel.Package.Metadata.Methods.Length)
+                            //    break;
+
                             var method = TypeModel.GetMetadataUsageMethod(usage);
                             declarationGenerator.IncludeMethod(method);
                             AddTypes(declarationGenerator.GenerateRemainingTypeDeclarations());
-                            
+
                             // Any method here SHOULD already be in the Methods list
                             // but we have seen one example where this is not the case for a MethodDef
-                            if (!Methods.ContainsKey(method)) {
+                            if (!Methods.ContainsKey(method))
+                            {
                                 var fnPtr = declarationGenerator.GenerateMethodDeclaration(method);
-                                Methods.Add(method, fnPtr, new AppMethod(method, fnPtr) {Group = Group});
+                                Methods.Add(method, fnPtr, new AppMethod(method, fnPtr) { Group = Group });
                             }
                             Methods[method].MethodInfoPtrAddress = address;
                             break;
