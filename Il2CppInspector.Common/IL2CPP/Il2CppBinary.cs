@@ -169,7 +169,7 @@ namespace Il2CppInspector
             Image.Version = metadataVersion;
 
             StatusUpdate("Searching for binary metadata");
-            if (!((FindMetadataFromSymbols() ?? FindMetadataFromCode() ?? FindMetadataFromData()) is (ulong code, ulong meta)))
+            if (!((FindMetadataFromSymbols() ?? FindMetadataFromData() ?? FindMetadataFromCode()) is (ulong code, ulong meta)))
                 return false;
 
             TryPrepareMetadata(code, meta);
@@ -278,8 +278,15 @@ namespace Il2CppInspector
 
             // genericAdjustorThunks was inserted before invokerPointersCount in 24.5 and 27.1
             // pointer expected if we need to bump version
-            if (Image.Version == 24.4 && CodeRegistration.invokerPointersCount > 0x100000) {
+            if (Image.Version == 24.4 && CodeRegistration.invokerPointersCount > 0x50000)
+            {
                 Image.Version = 24.5;
+                CodeRegistration = Image.ReadMappedObject<Il2CppCodeRegistration>(codeRegistration);
+            }
+
+            if (Image.Version == 24.4 && CodeRegistration.reversePInvokeWrapperCount > 0x50000) {
+                Image.Version = 24.5;
+                codeRegistration -= 1 * pointerSize;
                 CodeRegistration = Image.ReadMappedObject<Il2CppCodeRegistration>(codeRegistration);
             }
 
