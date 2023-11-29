@@ -48,11 +48,15 @@ namespace Il2CppInspector.Reflection
             if (pkg.Version < 21)
                 yield break;
 
+            if (pkg.Version < 29)
+            {
             var range = pkg.AttributeTypeRanges[customAttributeIndex];
-            for (var i = range.start; i < range.start + range.count; i++) {
+                for (var i = range.start; i < range.start + range.count; i++)
+                {
                 var typeIndex = pkg.AttributeTypeIndices[i];
 
-                if (asm.Model.AttributesByIndices.TryGetValue(i, out var attribute)) {
+                    if (asm.Model.AttributesByIndices.TryGetValue(i, out var attribute))
+                    {
                     yield return attribute;
                     continue;
                 }
