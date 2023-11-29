@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
     <PublishSingleFile>true</PublishSingleFile>
     <!-- Plugins may require bass class library assemblies we're not using so disable trimming -->
     <PublishTrimmed>false</PublishTrimmed>
