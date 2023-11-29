@@ -173,6 +173,30 @@ namespace Il2CppInspector
             // Synonyms: copying, piracy, theft, strealing, infringement of copyright
 
             BinaryImage.Position = 0;
+            var words = BinaryImage.ReadArray<ulong>(0, (int)BinaryImage.Length / (BinaryImage.Bits / 8));
+            var usages = new List<MetadataUsage>();
+
+            for (uint i = 0; i < words.Length; i++)
+            {
+                var metadataValue = words[i];
+                if (metadataValue < uint.MaxValue)
+                {
+                    var encodedToken = (uint)metadataValue;
+                    var usage = MetadataUsage.FromEncodedIndex(this, encodedToken);
+
+                    if (usage.Type > 0
+                        && usage.Type <= MetadataUsageType.MethodRef
+                        && metadataValue == (((uint)usage.Type << 29) | ((uint)usage.SourceIndex << 1)) + 1
+                        && BinaryImage.TryMapFileOffsetToVA(i * ((uint)BinaryImage.Bits / 8), out var va))
+                    {
+                        usages.Add(MetadataUsage.FromEncodedIndex(this, encodedToken, va));
+                    }
+                }
+            }
+
+            return usages;
+
+            /*BinaryImage.Position = 0;
             var sequenceLength = 0;
             var threshold = 6000; // current versions of mscorlib generate about 6000-7000 metadata usages
             var usagesCount = 0;
@@ -222,7 +246,7 @@ namespace Il2CppInspector
             }
 
             Console.WriteLine("Late binding metadata usage block could not be auto-detected - metadata usage references will not be available for this project");
-            return null;
+            return null;*/
         }
 
         // Thumb instruction pointers have the bottom bit set to signify a switch from ARM to Thumb when jumping

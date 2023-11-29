@@ -5,6 +5,7 @@
 */
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,32 +14,48 @@ namespace Il2CppInspector
 {
     partial class Il2CppBinary
     {
-        // Find a sequence of bytes
-        // Adapted from https://stackoverflow.com/a/332667
-        private int FindBytes(byte[] blob, byte[] signature, int requiredAlignment = 1, int startOffset = 0) {
-            var firstMatchByte = Array.IndexOf(blob, signature[0], startOffset);
-            var test = new byte[signature.Length];
+        // Boyer-Moore-Horspool
+        public IEnumerable<uint> FindAllBytes(byte[] blob, byte[] signature, uint requiredAlignment = 1)
+        { 
+            var badBytes = ArrayPool<uint>.Shared.Rent(256);
 
-            while (firstMatchByte >= 0 && firstMatchByte <= blob.Length - signature.Length) {
-                Buffer.BlockCopy(blob, firstMatchByte, test, 0, signature.Length);
-                if (test.SequenceEqual(signature) && firstMatchByte % requiredAlignment == 0)
-                    return firstMatchByte;
+            var signatureLength = (uint) signature.Length;
 
-                firstMatchByte = Array.IndexOf(blob, signature[0], firstMatchByte + 1);
+            for (uint i = 0; i < 256; i++)
+            {
+                badBytes[(int)i] = signatureLength;
             }
-            return -1;
-        }
 
-        // Find all occurrences of a sequence of bytes, using word alignment by default
-        private IEnumerable<uint> FindAllBytes(byte[] blob, byte[] signature, int alignment = 0) {
-            var offset = 0;
-            while (offset != -1) {
-                offset = FindBytes(blob, signature, alignment != 0 ? alignment : Image.Bits / 8, offset);
-                if (offset != -1) {
-                    yield return (uint) offset;
-                    offset += Image.Bits / 8;
+            var lastSignatureIndex = signatureLength - 1;
+
+            for (uint i = 0; i < lastSignatureIndex; i++)
+            {
+                badBytes[signature[(int)i]] = lastSignatureIndex - i;
+            }
+
+            var blobLength = blob.Length;
+
+            var currentIndex = 0u;
+
+            while (currentIndex <= blobLength - signatureLength)
+            {
+                for (uint i = lastSignatureIndex; blob[currentIndex + i] == signature[(int)i]; i--)
+                {
+                    if (i == 0)
+                    {
+                        yield return currentIndex;
+                        break;
+                    }
                 }
+
+                currentIndex += badBytes[blob[currentIndex + lastSignatureIndex]];
+
+                var alignment = currentIndex % requiredAlignment;
+                if (alignment != 0)
+                    currentIndex += requiredAlignment - alignment;
             }
+
+            ArrayPool<uint>.Shared.Return(badBytes);
         }
 
         // Find strings
@@ -70,11 +87,26 @@ namespace Il2CppInspector
         private IEnumerable<ulong> FindAllMappedWords(byte[] blob, IEnumerable<ulong> va) => va.SelectMany(a => FindAllMappedWords(blob, a));
 
         // Find all valid pointer chains to a set of virtual addresses with the specified number of indirections
-        private IEnumerable<ulong> FindAllPointerChains(byte[] blob, IEnumerable<ulong> va, int indirections) {
-            IEnumerable<ulong> vas = va;
-            for (int i = 0; i < indirections; i++)
-                vas = FindAllMappedWords(blob, vas);
-            return vas;
+        private IEnumerable<ulong> FindAllPointerChains(byte[] blob, ulong va, int indirections) {
+            foreach (var vas in FindAllMappedWords(blob, va))
+            {
+                if (indirections == 1)
+                {
+                    yield return vas;
+                }
+                else
+                {
+                    foreach (var foundPointer in FindAllPointerChains(blob, vas, indirections - 1))
+                    {
+                        yield return foundPointer;
+                    }
+                }
+            }
+
+            //IEnumerable<ulong> vas = va;
+            //for (int i = 0; i < indirections; i++)
+            //    vas = FindAllMappedWords(blob, vas);
+            //return vas;
         }
 
         // Scan the image for the needed data structures
@@ -93,13 +125,50 @@ namespace Il2CppInspector
                 // < 27: mscorlib.dll is always the first CodeGenModule
                 // >= 27: mscorlib.dll is always the last CodeGenModule (Assembly-CSharp.dll is always the first but non-Unity builds don't have this DLL)
                 //        NOTE: winrt.dll + other DLLs can come after mscorlib.dll so we can't use its location to get an accurate module count
-                var offsets = FindAllStrings(imageBytes, "mscorlib.dll\0");
-                vas = offsets.Select(o => Image.MapFileOffsetToVA(o));
+                ulong FindCodeRegistration()
+                {
+                    var imagesCount = Metadata.Images.Length;
 
-                // Unwind from string pointer -> CodeGenModule -> CodeGenModules + x
-                vas = FindAllPointerChains(imageBytes, vas, 2);
-                IEnumerable<ulong> codeRegVas = null;
+                    foreach (var offset in FindAllStrings(imageBytes, "mscorlib.dll\0"))
+                    {
+                        if (!Image.TryMapFileOffsetToVA(offset, out var va))
+                            continue;
 
+                        // Unwind from string pointer -> CodeGenModule -> CodeGenModules + x
+                        foreach (var potentialCodeGenModules in FindAllPointerChains(imageBytes, va, 2))
+                        {
+                            if (metadata.Version >= 27)
+                            {
+                                for (int i = imagesCount - 1; i >= 0; i--)
+                                {
+                                    foreach (var potentialCodeRegistrationPtr in FindAllPointerChains(imageBytes,
+                                                 potentialCodeGenModules - (ulong) i * ptrSize, 1))
+                                    {
+                                        var expectedImageCountPtr = potentialCodeRegistrationPtr - ptrSize;
+                                        var expectedImageCount = ptrSize == 4 ? Image.ReadMappedInt32(expectedImageCountPtr) : Image.ReadMappedInt64(expectedImageCountPtr);
+                                        if (expectedImageCount == imagesCount)
+                                            return potentialCodeRegistrationPtr;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for (int i = 0; i < imagesCount; i++)
+                                {
+                                    foreach (var potentialCodeRegistrationPtr in FindAllPointerChains(imageBytes,
+                                                 potentialCodeGenModules - (ulong)i * ptrSize, 1))
+                                    {
+                                        return potentialCodeRegistrationPtr;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    return 0;
+                }
+
+                /*
                 // We'll work back one pointer width at a time trying to find the first CodeGenModule
                 // Let's hope there aren't more than 200 DLLs in any given application :)
                 var maxCodeGenModules = 200;
@@ -126,9 +195,16 @@ namespace Il2CppInspector
 
                 if (codeRegVas.Count() > 1)
                     throw new InvalidOperationException("More than one valid pointer chain found during data heuristics");
+                */
+
+                var codeRegVa = FindCodeRegistration();
+
+                if (codeRegVa == 0)
+                    return (0, 0);
+
 
                 // pCodeGenModules is the last field in CodeRegistration so we subtract the size of one pointer from the struct size
-                codeRegistration = codeRegVas.First() - ((ulong) metadata.Sizeof(typeof(Il2CppCodeRegistration), Image.Version, Image.Bits / 8) - ptrSize);
+                codeRegistration = codeRegVa - ((ulong) metadata.Sizeof(typeof(Il2CppCodeRegistration), Image.Version, Image.Bits / 8) - ptrSize);
 
                 // In v24.3, windowsRuntimeFactoryTable collides with codeGenModules. So far no samples have had windowsRuntimeFactoryCount > 0;
                 // if this changes we'll have to get smarter about disambiguating these two.
@@ -178,7 +254,9 @@ namespace Il2CppInspector
             // Find TypeDefinitionsSizesCount (4th last field) then work back to the start of the struct
             // This saves us from guessing where metadataUsagesCount is later
             var mrSize = (ulong) metadata.Sizeof(typeof(Il2CppMetadataRegistration), Image.Version, Image.Bits / 8);
-            vas = FindAllMappedWords(imageBytes, (ulong) metadata.Types.Length).Select(a => a - mrSize + ptrSize * 4);
+            var typesLength = (ulong) metadata.Types.Length;
+
+            vas = FindAllMappedWords(imageBytes, typesLength).Select(a => a - mrSize + ptrSize * 4);
 
             // >= 19 && < 27
             if (Image.Version < 27)
@@ -205,7 +283,7 @@ namespace Il2CppInspector
                     // Even field indices are counts, odd field indices are pointers
                     bool ok = true;
                     for (var i = 0; i < mrWords.Length && ok; i++) {
-                        ok = i % 2 == 0 ? mrWords[i] < 0x30000 : Image.TryMapVATR((ulong) mrWords[i], out _);
+                        ok = i % 2 == 0 || Image.TryMapVATR((ulong) mrWords[i], out _);
                     }
                     if (ok)
                         metadataRegistration = va;
