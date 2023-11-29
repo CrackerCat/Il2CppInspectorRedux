@@ -269,6 +269,8 @@ namespace Il2CppInspector
             CodeRegistrationPointer = codeRegistration;
             MetadataRegistrationPointer = metadataRegistration;
 
+            var pointerSize = Image.Bits == 32 ? 4u : 8u;
+
             Console.WriteLine("CodeRegistration struct found at 0x{0:X16} (file offset 0x{1:X8})", Image.Bits == 32 ? codeRegistration & 0xffff_ffff : codeRegistration, Image.MapVATR(codeRegistration));
             Console.WriteLine("MetadataRegistration struct found at 0x{0:X16} (file offset 0x{1:X8})", Image.Bits == 32 ? metadataRegistration & 0xffff_ffff : metadataRegistration, Image.MapVATR(metadataRegistration));
 
