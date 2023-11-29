@@ -400,6 +400,8 @@ namespace Il2CppInspector
                     pTables.Add((SHT_DYNSYM.sh_offset, conv.Div(SHT_DYNSYM.sh_size, SHT_DYNSYM.sh_entsize), SHT_STRTAB.sh_offset));
             }
 
+            var maxStrtabAddr = conv.Add(SHT_STRTAB.sh_offset, SHT_STRTAB.sh_size);
+
             // Symbol table in dynamic section (DT_SYMTAB)
             // Normally the same as .dynsym except that .dynsym may be removed in stripped binaries
 
@@ -407,14 +409,17 @@ namespace Il2CppInspector
             if (GetDynamicEntry(Elf.DT_STRTAB) is elf_dynamic<TWord> DT_STRTAB) {
                 if (GetDynamicEntry(Elf.DT_SYMTAB) is elf_dynamic<TWord> DT_SYMTAB) {
                     // Find the next pointer in the dynamic table to calculate the length of the symbol table
-                    var end = (from x in DynamicTable where conv.Gt(x.d_un, DT_SYMTAB.d_un) orderby x.d_un select x).First().d_un;
-
-                    // Dynamic symbol table
-                    pTables.Add((
-                        conv.FromUInt(MapVATR(conv.ULong(DT_SYMTAB.d_un))),
-                        conv.Div(conv.Sub(end, DT_SYMTAB.d_un), Sizeof(typeof(TSym))),
-                        DT_STRTAB.d_un
-                    ));
+                    var orderedTable = (from x in DynamicTable where conv.Gt(x.d_un, DT_SYMTAB.d_un) orderby x.d_un select x).ToList();
+                    if (orderedTable.Count != 0)
+                    {
+                        var end = orderedTable.First().d_un;
+                        // Dynamic symbol table
+                        pTables.Add((
+                            conv.FromUInt(MapVATR(conv.ULong(DT_SYMTAB.d_un))),
+                            conv.Div(conv.Sub(end, DT_SYMTAB.d_un), Sizeof(typeof(TSym))),
+                            DT_STRTAB.d_un
+                        ));
+                    }
                 }
             }
 
@@ -425,7 +430,11 @@ namespace Il2CppInspector
             foreach (var pTab in pTables) {
                 var symbol_table = ReadArray<TSym>(conv.Long(pTab.offset), conv.Int(pTab.count));
 
-                foreach (var symbol in symbol_table) {
+                foreach (var symbol in symbol_table)
+                {
+                    if (conv.Gt(conv.FromUInt(symbol.st_name), maxStrtabAddr)) 
+                        break; // Skip invalid symbol table indices, since we might read past it on obfuscated binaries
+
                     string name = string.Empty;
                     try {
                         name = ReadNullTerminatedString(conv.Long(pTab.strings) + symbol.st_name);
@@ -513,14 +522,14 @@ namespace Il2CppInspector
             // Additions in the argument to MapVATR may cause an overflow which should be discarded for 32-bit files
             if (Bits == 32)
                 uiAddr &= 0xffff_ffff;
-             var program_header_table = this.PHT.First(x => uiAddr >= conv.ULong(x.p_vaddr) && uiAddr <= conv.ULong(conv.Add(x.p_vaddr, x.p_filesz)));
+            var program_header_table = this.PHT.First(x => uiAddr >= conv.ULong(x.p_vaddr) && uiAddr <= conv.ULong(conv.Add(x.p_vaddr, x.p_filesz)));
             return (uint) (uiAddr - conv.ULong(conv.Sub(program_header_table.p_vaddr, program_header_table.p_offset)));
         }
 
         public override ulong MapFileOffsetToVA(uint offset) {
             // Exclude relocation areas
             if (reverseMapExclusions.Any(r => offset >= r.Start && offset <= r.End))
-                throw new InvalidOperationException("Attempt to map to a relocation address");
+                return ulong.MaxValue;
 
             var section = PHT.First(x => offset >= conv.Int(x.p_offset) && offset < conv.Int(x.p_offset) + conv.Int(x.p_filesz));
             return conv.ULong(section.p_vaddr) + offset - conv.ULong(section.p_offset);

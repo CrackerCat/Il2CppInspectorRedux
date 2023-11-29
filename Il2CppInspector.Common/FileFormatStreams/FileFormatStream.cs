@@ -272,6 +272,12 @@ namespace Il2CppInspector
         public bool TryMapFileOffsetToVA(uint offset, out ulong va) {
             try {
                 va = MapFileOffsetToVA(offset);
+                if (va == ulong.MaxValue)
+                {
+                    va = 0;
+                    return false;
+                }
+
                 return true;
             }
             catch (InvalidOperationException) {
