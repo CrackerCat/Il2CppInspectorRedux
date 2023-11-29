@@ -31,6 +31,7 @@ namespace Il2CppInspector
         public Il2CppGenericContainer[] GenericContainers { get; set; }
         public Il2CppGenericParameter[] GenericParameters { get; set; }
         public Il2CppCustomAttributeTypeRange[] AttributeTypeRanges { get; set; }
+        public Il2CppCustomAttributeDataRange[] AttributeDataRanges { get; set; }
         public Il2CppInterfaceOffsetPair[] InterfaceOffsets { get; set; }
         public Il2CppMetadataUsageList[] MetadataUsageLists { get; set; }
         public Il2CppMetadataUsagePair[] MetadataUsagePairs { get; set; }
@@ -87,7 +88,7 @@ namespace Il2CppInspector
             // Set object versioning for Bin2Object from metadata version
             Version = Header.version;
 
-            if (Version < 16 || Version > 27) {
+            if (Version < 16 || Version > 29.1) {
                 throw new InvalidOperationException($"The supplied metadata file is not of a supported version ({Header.version}).");
             }
 
@@ -120,7 +121,7 @@ namespace Il2CppInspector
             
             // Load all the relevant metadata using offsets provided in the header
             if (Version >= 16)
-                Images = ReadArray<Il2CppImageDefinition>(Header.imagesOffset, Header.imagesCount / Sizeof(typeof(Il2CppImageDefinition)));
+                Images = ReadArray<Il2CppImageDefinition>(Header.imagesOffset,  Header.imagesCount / Sizeof(typeof(Il2CppImageDefinition)));
 
             // As an additional sanity check, all images in the metadata should have Mono.Cecil.MetadataToken == 1
             // In metadata v24.1, two extra fields were added which will cause the below test to fail.
@@ -157,10 +158,19 @@ namespace Il2CppInspector
                 // The number of images and assemblies should be the same. If they are not, we deduce that we are using v24.4
                 // Note the version comparison matches both 24.2 and 24.3 here since 24.3 is tested for during binary loading
                 var assemblyCount = Header.assembliesCount / Sizeof(typeof(Il2CppAssemblyDefinition));
-                if (Version == 24.2 && assemblyCount < Images.Length)
+                var changedAssemblyDefStruct = false;
+                if ((Version == 24.1 || Version == 24.2 || Version == 24.3) && assemblyCount < Images.Length)
+                {
+                    if (Version == 24.1)
+                        changedAssemblyDefStruct = true;
                     Version = 24.4;
+                }
 
                 Assemblies = ReadArray<Il2CppAssemblyDefinition>(Header.assembliesOffset, Images.Length);
+
+                if (changedAssemblyDefStruct)
+                    Version = 24.1;
+
                 ParameterDefaultValues = ReadArray<Il2CppParameterDefaultValue>(Header.parameterDefaultValuesOffset, Header.parameterDefaultValuesCount / Sizeof(typeof(Il2CppParameterDefaultValue)));
             }
             if (Version >= 19 && Version < 27) {
@@ -170,9 +180,15 @@ namespace Il2CppInspector
             if (Version >= 19) {
                 FieldRefs = ReadArray<Il2CppFieldRef>(Header.fieldRefsOffset, Header.fieldRefsCount / Sizeof(typeof(Il2CppFieldRef)));
             }
-            if (Version >= 21) {
+            if (Version >= 21 && Version < 29) {
                 AttributeTypeIndices = ReadArray<int>(Header.attributeTypesOffset, Header.attributeTypesCount / sizeof(int));
                 AttributeTypeRanges = ReadArray<Il2CppCustomAttributeTypeRange>(Header.attributesInfoOffset, Header.attributesInfoCount / Sizeof(typeof(Il2CppCustomAttributeTypeRange)));
+            }
+
+            if (Version >= 29)
+            {
+                AttributeDataRanges = ReadArray<Il2CppCustomAttributeDataRange>(Header.attributeDataRangeOffset,
+                    Header.attributeDataRangeSize / Sizeof(typeof(Il2CppCustomAttributeDataRange)));
             }
 
             // Get all metadata strings
