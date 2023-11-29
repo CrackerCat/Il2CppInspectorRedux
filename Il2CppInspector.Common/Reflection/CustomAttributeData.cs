@@ -63,6 +63,12 @@ namespace Il2CppInspector.Reflection
                 yield return attribute;
             }
         }
+            else
+            {
+                Console.WriteLine("Skipping custom attributes for 29+");
+                yield break;
+            }
+        }
 
         private static IList<CustomAttributeData> getCustomAttributes(Assembly asm, int token, int customAttributeIndex) =>
                 getCustomAttributes(asm, asm.Model.GetCustomAttributeIndex(asm, token, customAttributeIndex)).ToList();

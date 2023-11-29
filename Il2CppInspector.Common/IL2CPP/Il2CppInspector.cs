@@ -102,10 +102,14 @@ namespace Il2CppInspector
                     value = Metadata.ReadInt16();
                     break;
                 case Il2CppTypeEnum.IL2CPP_TYPE_U4:
-                    value = Metadata.ReadUInt32();
+                    value = Metadata.Version >= 29 
+                        ? Metadata.ReadCompressedUInt32()
+                        : Metadata.ReadUInt32();
                     break;
                 case Il2CppTypeEnum.IL2CPP_TYPE_I4:
-                    value = Metadata.ReadInt32();
+                    value = Metadata.Version >= 29 
+                        ? Metadata.ReadCompressedInt32()
+                        : Metadata.ReadInt32();
                     break;
                 case Il2CppTypeEnum.IL2CPP_TYPE_U8:
                     value = Metadata.ReadUInt64();
@@ -120,7 +124,10 @@ namespace Il2CppInspector
                     value = Metadata.ReadDouble();
                     break;
                 case Il2CppTypeEnum.IL2CPP_TYPE_STRING:
-                    var uiLen = Metadata.ReadInt32();
+                    var uiLen = Metadata.Version >= 29 
+                        ? Metadata.ReadCompressedInt32() 
+                        : Metadata.ReadInt32();
+
                     value = Encoding.UTF8.GetString(Metadata.ReadBytes(uiLen));
                     break;
             }
@@ -310,7 +317,7 @@ namespace Il2CppInspector
             FunctionAddresses.Add(sortedFunctionPointers[^1], sortedFunctionPointers[^1]);
 
             // Organize custom attribute indices
-            if (Version >= 24.1) {
+            if (Version >= 24.1 && Version < 29) {
                 AttributeIndicesByToken = new Dictionary<int, Dictionary<uint, int>>();
                 foreach (var image in Images) {
                     var attsByToken = new Dictionary<uint, int>();

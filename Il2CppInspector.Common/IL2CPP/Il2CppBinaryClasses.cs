@@ -57,10 +57,19 @@ namespace Il2CppInspector
         public ulong guids; // Il2CppGuid
 
         // Added in metadata v22
-        [Version(Min = 22)]
+        [Version(Min = 22, Max = 29)]
         public ulong unresolvedVirtualCallCount;
+
+        [Version(Min = 29.1)]
+        public ulong unresolvedIndirectCallCount;
+
         [Version(Min = 22)]
         public ulong unresolvedVirtualCallPointers;
+
+        [Version(Min = 29.1)]
+        public ulong unresolvedInstanceCallPointers;
+        [Version(Min = 29.1)]
+        public ulong unresolvedStaticCallPointers;
 
         // Added in metadata v23
         [Version(Min = 23)]
@@ -102,10 +111,15 @@ namespace Il2CppInspector
         public ulong debuggerMetadata;
 
         // Added in metadata v27
+        [Version(Min = 27, Max = 27.2)]
         public ulong customAttributeCacheGenerator; // CustomAttributesCacheGenerator*
+        [Version(Min = 27)]
         public ulong moduleInitializer; // Il2CppMethodPointer
+        [Version(Min = 27)]
         public ulong staticConstructorTypeIndices; // TypeDefinitionIndex*
+        [Version(Min = 27)]
         public ulong metadataRegistration; // Il2CppMetadataRegistration* // Per-assembly mode only
+        [Version(Min = 27)]
         public ulong codeRegistration; // Il2CppCodeRegistration* // Per-assembly mode only
     }
 
@@ -179,7 +193,8 @@ namespace Il2CppInspector
         IL2CPP_TYPE_SENTINEL = 0x41,       /* Sentinel for varargs method signature */
         IL2CPP_TYPE_PINNED = 0x45,       /* Local var that points to pinned object */
 
-        IL2CPP_TYPE_ENUM = 0x55        /* an enumeration */
+        IL2CPP_TYPE_ENUM = 0x55,        /* an enumeration */
+        IL2CPP_TYPE_IL2CPP_TYPE_INDEX = 0xff /* Type index metadata table */
     }
 
     // From metadata.h / il2cpp-runtime-metadata.h
@@ -199,6 +214,7 @@ namespace Il2CppInspector
         */
         public ulong datapoint;
         public ulong bits; // this should be private but we need it to be public for BinaryObjectReader to work
+        //public Union data { get; set; }
 
         public uint attrs => (uint) bits & 0xffff; /* param attributes or field flags */
         public Il2CppTypeEnum type => (Il2CppTypeEnum)((bits >> 16) & 0xff);
@@ -206,6 +222,39 @@ namespace Il2CppInspector
         public uint num_mods => (uint) (bits >> 24) & 0x3f; /* max 64 modifiers follow at the end */
         public bool byref => ((bits >> 30) & 1) == 1;
         public bool pinned => (bits >> 31) == 1; /* valid when included in a local var signature */
+
+        /*public class Union
+        {
+            public ulong dummy;
+            /// <summary>
+            /// for VALUETYPE and CLASS
+            /// </summary>
+            public long klassIndex => (long)dummy;
+            /// <summary>
+            /// for VALUETYPE and CLASS at runtime
+            /// </summary>
+            public ulong typeHandle => dummy;
+            /// <summary>
+            /// for PTR and SZARRAY
+            /// </summary>
+            public ulong type => dummy;
+            /// <summary>
+            /// for ARRAY
+            /// </summary>
+            public ulong array => dummy;
+            /// <summary>
+            /// for VAR and MVAR
+            /// </summary>
+            public long genericParameterIndex => (long)dummy;
+            /// <summary>
+            /// for VAR and MVAR at runtime
+            /// </summary>
+            public ulong genericParameterHandle => dummy;
+            /// <summary>
+            /// for GENERICINST
+            /// </summary>
+            public ulong generic_class => dummy;
+        }*/
     }
 
     public class Il2CppGenericClass

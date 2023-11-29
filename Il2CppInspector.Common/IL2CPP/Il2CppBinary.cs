@@ -292,6 +292,13 @@ namespace Il2CppInspector
                 CodeRegistration = Image.ReadMappedObject<Il2CppCodeRegistration>(codeRegistration);
             }
 
+            if (Image.Version == 29 && CodeRegistration.genericMethodPointersCount > 0x50000)
+            {
+                Image.Version = 29.1;
+                codeRegistration -= 2 * pointerSize;
+                CodeRegistration = Image.ReadMappedObject<Il2CppCodeRegistration>(codeRegistration);
+            }
+
             // Plugin hook to pre-process binary
             isModified |= PluginHooks.PreProcessBinary(this).IsStreamModified;
 
