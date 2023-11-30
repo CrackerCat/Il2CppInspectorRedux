@@ -47,6 +47,7 @@ namespace Il2CppInspector
         public Il2CppGenericParameter[] GenericParameters => Metadata.GenericParameters;
         public int[] GenericConstraintIndices => Metadata.GenericConstraintIndices;
         public Il2CppCustomAttributeTypeRange[] AttributeTypeRanges => Metadata.AttributeTypeRanges;
+        public Il2CppCustomAttributeDataRange[] AttributeDataRanges => Metadata.AttributeDataRanges;
         public Il2CppInterfaceOffsetPair[] InterfaceOffsets => Metadata.InterfaceOffsets;
         public int[] InterfaceUsageIndices => Metadata.InterfaceUsageIndices;
         public int[] NestedTypeIndices => Metadata.NestedTypeIndices;
@@ -217,17 +218,22 @@ namespace Il2CppInspector
             // Build list of custom attribute generators
             if (Version < 27)
                 CustomAttributeGenerators = Binary.CustomAttributeGenerators;
-            else if (Version < 29) {
+            else if (Version < 29)
+            {
                 var cagCount = Images.Sum(i => i.customAttributeCount);
                 CustomAttributeGenerators = new ulong[cagCount];
 
-                foreach (var image in Images) {
+                foreach (var image in Images)
+                {
                     // Get CodeGenModule for this image
                     var codeGenModule = Binary.Modules[Strings[image.nameIndex]];
-                    var cags = BinaryImage.ReadMappedWordArray(codeGenModule.customAttributeCacheGenerator, (int) image.customAttributeCount);
+                    var cags = BinaryImage.ReadMappedWordArray(codeGenModule.customAttributeCacheGenerator,
+                        (int) image.customAttributeCount);
                     cags.CopyTo(CustomAttributeGenerators, image.customAttributeStart);
                 }
             }
+            else
+                CustomAttributeGenerators = [];
 
             // Decode addresses for Thumb etc. without altering the Il2CppBinary structure data
             CustomAttributeGenerators = CustomAttributeGenerators.Select(getDecodedAddress).ToArray();
@@ -254,17 +260,19 @@ namespace Il2CppInspector
             FunctionAddresses.Add(sortedFunctionPointers[^1], sortedFunctionPointers[^1]);
 
             // Organize custom attribute indices
-            if (Version >= 24.1 && Version < 29) {
-                AttributeIndicesByToken = new Dictionary<int, Dictionary<uint, int>>();
-                foreach (var image in Images) {
+            if (Version >= 24.1) {
+                AttributeIndicesByToken = [];
+                foreach (var image in Images)
+                {
                     var attsByToken = new Dictionary<uint, int>();
-                    for (int i = 0; i < image.customAttributeCount; i++) {
+                    for (int i = 0; i < image.customAttributeCount; i++)
+                    {
                         var index = image.customAttributeStart + i;
-                        var token = AttributeTypeRanges[index].token;
+                        var token = Version >= 29 ? AttributeDataRanges[index].token : AttributeTypeRanges[index].token;
                         attsByToken.Add(token, index);
                     }
-                    if (image.customAttributeCount > 0)
-                        AttributeIndicesByToken.Add(image.customAttributeStart, attsByToken);
+
+                    AttributeIndicesByToken.Add(image.customAttributeStart, attsByToken);
                 }
             }
 
