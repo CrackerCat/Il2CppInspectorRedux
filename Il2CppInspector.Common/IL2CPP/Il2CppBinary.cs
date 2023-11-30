@@ -382,7 +382,13 @@ namespace Il2CppInspector
             // Type references (pointer array)
             var typeRefPointers = Image.ReadMappedArray<ulong>(MetadataRegistration.ptypes, (int) MetadataRegistration.typesCount);
             TypeReferenceIndicesByAddress = typeRefPointers.Zip(Enumerable.Range(0, typeRefPointers.Length), (a, i) => new { a, i }).ToDictionary(x => x.a, x => x.i);
-            TypeReferences = Image.ReadMappedObjectPointerArray<Il2CppType>(MetadataRegistration.ptypes, (int) MetadataRegistration.typesCount);
+            
+            TypeReferences = 
+                Image.Version >= 27.2 
+                    ? Image.ReadMappedObjectPointerArray<Il2CppTypeV272>(MetadataRegistration.ptypes, (int) MetadataRegistration.typesCount)
+                        .Cast<Il2CppType>()
+                        .ToList() 
+                    : Image.ReadMappedObjectPointerArray<Il2CppType>(MetadataRegistration.ptypes, (int)MetadataRegistration.typesCount);
 
             // Custom attribute constructors (function pointers)
             // This is managed in Il2CppInspector for metadata >= 27

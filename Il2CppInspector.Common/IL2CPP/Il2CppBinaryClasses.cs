@@ -200,63 +200,39 @@ namespace Il2CppInspector
     // From metadata.h / il2cpp-runtime-metadata.h
     public class Il2CppType
     {
+        public ulong datapoint;
+        public ulong bits; // this should be private but we need it to be public for BinaryObjectReader to work
+        //public Union data { get; set; }
+
+        public virtual uint attrs => (uint) bits & 0xffff;
+        public virtual Il2CppTypeEnum type => (Il2CppTypeEnum)((bits >> 16) & 0xff);
+
+        public virtual uint num_mods => (uint) (bits >> 24) & 0x3f;
+        public virtual bool byref => ((bits >> 30) & 1) == 1;
+        public virtual bool pinned => ((bits >> 31) & 1) == 1;
+        public virtual bool valuetype => false;
+
         /*
         union
         {
             TypeDefinitionIndex klassIndex; // for VALUETYPE and CLASS (<v27; v27: at startup)
             Il2CppMetadataTypeHandle typeHandle; // for VALUETYPE and CLASS (added in v27: at runtime)
-            const Il2CppType* type; // for PTR and SZARRAY 
-            Il2CppArrayType* array; // for ARRAY 
+            const Il2CppType* type; // for PTR and SZARRAY
+            Il2CppArrayType* array; // for ARRAY
             GenericParameterIndex genericParameterIndex; // for VAR and MVAR (<v27; v27: at startup)
             Il2CppMetadataGenericParameterHandle genericParameterHandle; // for VAR and MVAR (added in v27: at runtime)
             Il2CppGenericClass* generic_class; // for GENERICINST
         }
         */
-        public ulong datapoint;
-        public ulong bits; // this should be private but we need it to be public for BinaryObjectReader to work
-        //public Union data { get; set; }
+    }
 
-        public uint attrs => (uint) bits & 0xffff; /* param attributes or field flags */
-        public Il2CppTypeEnum type => (Il2CppTypeEnum)((bits >> 16) & 0xff);
-        // Unity 2021.1 (v27.2): num_mods becomes 1 bit shorter, shifting byref and pinned left 1 bit, valuetype bit added
-
-        public uint NumMods(double version) => (uint) (bits >> 24) & (version >= 27.2 ? 0x1fu : 0x3fu);
-        public bool ByRef(double version) => (bits >> (version >= 27.2 ? 29 : 30) & 1) == 1;
-        public bool Pinned(double version) => (bits >> (version >= 27.2 ? 30 : 31) & 1) == 1;
-        public bool ValueType(double version) => version >= 27.2 && ((bits >> 31) & 1) == 1; // Was only added in 27.2
-
-        /*public class Union
-        {
-            public ulong dummy;
-            /// <summary>
-            /// for VALUETYPE and CLASS
-            /// </summary>
-            public long klassIndex => (long)dummy;
-            /// <summary>
-            /// for VALUETYPE and CLASS at runtime
-            /// </summary>
-            public ulong typeHandle => dummy;
-            /// <summary>
-            /// for PTR and SZARRAY
-            /// </summary>
-            public ulong type => dummy;
-            /// <summary>
-            /// for ARRAY
-            /// </summary>
-            public ulong array => dummy;
-            /// <summary>
-            /// for VAR and MVAR
-            /// </summary>
-            public long genericParameterIndex => (long)dummy;
-            /// <summary>
-            /// for VAR and MVAR at runtime
-            /// </summary>
-            public ulong genericParameterHandle => dummy;
-            /// <summary>
-            /// for GENERICINST
-            /// </summary>
-            public ulong generic_class => dummy;
-        }*/
+    // Unity 2021.1 (v27.2): num_mods becomes 1 bit shorter, shifting byref and pinned left 1 bit, valuetype bit added
+    public class Il2CppTypeV272 : Il2CppType
+    {
+        public override uint num_mods => (uint) (bits >> 24) & 0x1f;
+        public override bool byref => ((bits >> 29) & 1) == 1;
+        public override bool pinned => ((bits >> 30) & 1) == 1;
+        public override bool valuetype => ((bits >> 31) & 1) == 1;
     }
 
     public class Il2CppGenericClass
