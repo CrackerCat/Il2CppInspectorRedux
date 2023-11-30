@@ -82,56 +82,9 @@ namespace Il2CppInspector
             if (pValue == 0)
                 return (0ul, null);
 
-            object value = null;
             Metadata.Position = pValue;
-            switch (typeRef.type) {
-                case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN:
-                    value = Metadata.ReadBoolean();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U1:
-                case Il2CppTypeEnum.IL2CPP_TYPE_I1:
-                    value = Metadata.ReadByte();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_CHAR:
-                    // UTF-8 character assumed
-                    value = BitConverter.ToChar(Metadata.ReadBytes(2), 0);
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U2:
-                    value = Metadata.ReadUInt16();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I2:
-                    value = Metadata.ReadInt16();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U4:
-                    value = Metadata.Version >= 29 
-                        ? Metadata.ReadCompressedUInt32()
-                        : Metadata.ReadUInt32();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I4:
-                    value = Metadata.Version >= 29 
-                        ? Metadata.ReadCompressedInt32()
-                        : Metadata.ReadInt32();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U8:
-                    value = Metadata.ReadUInt64();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I8:
-                    value = Metadata.ReadInt64();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_R4:
-                    value = Metadata.ReadSingle();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_R8:
-                    value = Metadata.ReadDouble();
-                    break;
-                case Il2CppTypeEnum.IL2CPP_TYPE_STRING:
-                    var uiLen = Metadata.Version >= 29 
-                        ? Metadata.ReadCompressedInt32() 
-                        : Metadata.ReadInt32();
+            var value = BlobReader.GetConstantValueFromBlob(this, typeRef.type, Metadata);
 
-                    value = Encoding.UTF8.GetString(Metadata.ReadBytes(uiLen));
-                    break;
-            }
             return ((ulong) pValue, value);
         }
 
@@ -207,8 +160,8 @@ namespace Il2CppInspector
                     MetadataUsageType.MethodRef => MethodSpecs.Length > usage.SourceIndex,
                     _ => false,
                 };
-                }
-                }
+            }
+        }
 
         // Thumb instruction pointers have the bottom bit set to signify a switch from ARM to Thumb when jumping
         private ulong getDecodedAddress(ulong addr) {
@@ -264,8 +217,7 @@ namespace Il2CppInspector
             // Build list of custom attribute generators
             if (Version < 27)
                 CustomAttributeGenerators = Binary.CustomAttributeGenerators;
-
-            else {
+            else if (Version < 29) {
                 var cagCount = Images.Sum(i => i.customAttributeCount);
                 CustomAttributeGenerators = new ulong[cagCount];
 
@@ -278,15 +230,15 @@ namespace Il2CppInspector
             }
 
             // Decode addresses for Thumb etc. without altering the Il2CppBinary structure data
-            CustomAttributeGenerators = CustomAttributeGenerators.Select(a => getDecodedAddress(a)).ToArray();
-            MethodInvokePointers = Binary.MethodInvokePointers.Select(a => getDecodedAddress(a)).ToArray();
+            CustomAttributeGenerators = CustomAttributeGenerators.Select(getDecodedAddress).ToArray();
+            MethodInvokePointers = Binary.MethodInvokePointers.Select(getDecodedAddress).ToArray();
             GenericMethodPointers = Binary.GenericMethodPointers.ToDictionary(a => a.Key, a => getDecodedAddress(a.Value));
 
             // Get sorted list of function pointers from all sources
             // TODO: This does not include IL2CPP API functions
             var sortedFunctionPointers = (Version <= 24.1)?
-            Binary.GlobalMethodPointers.Select(a => getDecodedAddress(a)).ToList() :
-            Binary.ModuleMethodPointers.SelectMany(module => module.Value).Select(a => getDecodedAddress(a)).ToList();
+            Binary.GlobalMethodPointers.Select(getDecodedAddress).ToList() :
+            Binary.ModuleMethodPointers.SelectMany(module => module.Value).Select(getDecodedAddress).ToList();
 
             sortedFunctionPointers.AddRange(CustomAttributeGenerators);
             sortedFunctionPointers.AddRange(MethodInvokePointers);

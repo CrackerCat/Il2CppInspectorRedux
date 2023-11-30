@@ -259,7 +259,7 @@ namespace Il2CppInspector.Reflection
             }
 
             // Create a reference type if necessary
-            return typeRef.byref ? underlyingType.MakeByRefType() : underlyingType;
+            return typeRef.ByRef(Package.Version) ? underlyingType.MakeByRefType() : underlyingType;
         }
 
         // Basic primitive types are specified via a flag value
