@@ -533,11 +533,42 @@ namespace Il2CppInspector.Cpp
             GlobalNamer = GlobalsNamespace.MakeNamer<MethodBase>((method) => $"{TypeNamer.GetName(method.DeclaringType)}_{method.Name.ToCIdentifier()}");
         }
 
+        private static readonly string[] ReservedCppKeywords =
+        [
+            "_Alignas", "_Alignof", "_Atomic", "_Bool",
+            "_Complex", "_Generic",
+            "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local",
+            "alignas", "alignof", "and", "and_eq", 
+            "asm", "auto", "bitand", "bitor",
+            "bool", "break", "case", "catch",
+            "char", "char16_t", "char32_t", "char8_t",
+            "class", "co_await", "co_return", "co_yield",
+            "compl", "concept", "const", "const_cast",
+            "consteval", "constexpr", "constinit", "continue",
+            "decltype", "default", "delete", "do",
+            "double", "dynamic_cast", "else", "enum",
+            "explicit", "export", "extern", "false",
+            "final", "float", "for", "friend",
+            "goto", "if", "inline", "int",
+            "long", "mutable", "namespace", "new",
+            "noexcept", "not", "not_eq", "nullptr",
+            "operator", "or", "or_eq", "private",
+            "protected", "public", "reflexpr", "register",
+            "reinterpret_cast", "requires", "restrict", "return",
+            "short", "signed", "sizeof", "static",
+            "static_assert", "static_cast", "struct", "switch",
+            "synchronized", "template", "this", "thread_local",
+            "throw", "true", "try", "typedef",
+            "typeid", "typename", "union", "unsigned",
+            "using", "virtual", "void", "volatile",
+            "wchar_t", "while", "xor", "xor_eq"
+        ];
+
         // Reserve C/C++ keywords and built-in names
         private static CppNamespace CreateNamespace() {
             var ns = new CppNamespace();
             /* Reserve C/C++ keywords */
-            foreach (var keyword in new [] { "_Alignas", "_Alignof", "_Atomic", "_Bool", "_Complex", "_Generic", "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local", "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break", "case", "catch", "char", "char16_t", "char32_t", "char8_t", "class", "co_await", "co_return", "co_yield", "compl", "concept", "const", "const_cast", "consteval", "constexpr", "constinit", "continue", "decltype", "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit", "export", "extern", "false", "final", "float", "for", "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected", "public", "reflexpr", "register", "reinterpret_cast", "requires", "restrict", "return", "short", "signed", "sizeof", "static", "static_assert", "static_cast", "struct", "switch", "synchronized", "template", "this", "thread_local", "throw", "true", "try", "typedef", "typeid", "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq" }) {
+            foreach (var keyword in ReservedCppKeywords) {
                 ns.ReserveName(keyword);
             }
             /* Reserve commonly defined C++ symbols for MSVC DLL projects */

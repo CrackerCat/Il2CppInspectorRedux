@@ -24,18 +24,15 @@ namespace Il2CppInspector.Cpp
 
         // Mark a name as reserved without assigning an object to it (e.g. for keywords and built-in names)
         public void ReserveName(string name) {
-            if (renameCount.ContainsKey(name)) {
+            if (!renameCount.TryAdd(name, 0)) {
                 throw new Exception($"Can't reserve {name}: already taken!");
             }
-            renameCount[name] = 0;
         }
 
         // Try to mark a name as reserved without assigning an object to it (e.g. for keywords and built-in names)
-        public bool TryReserveName(string name) {
-            if (renameCount.ContainsKey(name))
-                return false;
-            renameCount[name] = 0;
-            return true;
+        public bool TryReserveName(string name)
+        {
+            return renameCount.TryAdd(name, 0);
         }
 
         // Create a Namer object which will give names to objects of type T which are unique within this namespace

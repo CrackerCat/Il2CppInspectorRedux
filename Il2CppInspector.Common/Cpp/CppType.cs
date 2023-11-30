@@ -398,7 +398,14 @@ namespace Il2CppInspector.Cpp
                     fieldString = sbEnum.ToString();
                     suffix = "";
                 }
-                sb.Append("\n    " + string.Join("\n    ", fieldString.Split('\n')) + suffix);
+
+                sb.Append("\n    ");
+                foreach (var fieldStr in fieldString.Split('\n'))
+                {
+                    sb.Append(fieldStr);
+                    sb.Append("\n    ");
+                }
+                sb.Append(suffix);
             }
 
             sb.Append($"\n}}{(format == "o"? $" /* Size: 0x{SizeBytes:x2} */" : "")};");

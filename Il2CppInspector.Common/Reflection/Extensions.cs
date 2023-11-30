@@ -81,12 +81,21 @@ namespace Il2CppInspector.Reflection
         public static string ToEscapedString(this string str) {
             // Replace standard escape characters
             var s = new StringBuilder();
-            for (var i = 0; i < str.Length; i++)
-                // Standard escape characters
-                s.Append(escapeChars.ContainsKey(str[i]) ? escapeChars[str[i]]
-                        // Replace everything else with UTF-16 Unicode
-                    : str[i] < 32 || str[i] > 126 ? @"\u" + $"{(int) str[i]:X4}"
-                    : str[i].ToString());
+
+            foreach (var chr in str)
+            {
+                if (escapeChars.TryGetValue(chr, out var escaped))
+                    s.Append(escaped);
+                else if (chr < 32 || chr > 126)
+                {
+                    s.Append("\\u");
+                    s.Append($"{(int) chr:X4}");
+                }
+                else
+                    s.Append(chr);
+                    
+            }
+
             return s.ToString();
         }
 
