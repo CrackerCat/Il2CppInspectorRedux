@@ -4,6 +4,7 @@
     All rights reserved.
 */
 
+using Il2CppInspector.Utils;
 using NoisyCowStudios.Bin2Object;
 using System;
 using System.Collections.Generic;
@@ -184,70 +185,30 @@ namespace Il2CppInspector
                     var encodedToken = (uint)metadataValue;
                     var usage = MetadataUsage.FromEncodedIndex(this, encodedToken);
 
-                    if (usage.Type > 0
-                        && usage.Type <= MetadataUsageType.MethodRef
-                        && metadataValue == (((uint)usage.Type << 29) | ((uint)usage.SourceIndex << 1)) + 1
+                    if (CheckMetadataUsageSanity(usage)
                         && BinaryImage.TryMapFileOffsetToVA(i * ((uint)BinaryImage.Bits / 8), out var va))
                     {
-                        usages.Add(MetadataUsage.FromEncodedIndex(this, encodedToken, va));
+                        usage.SetAddress(va);
+                        usages.Add(usage);
                     }
                 }
             }
 
             return usages;
 
-            /*BinaryImage.Position = 0;
-            var sequenceLength = 0;
-            var threshold = 6000; // current versions of mscorlib generate about 6000-7000 metadata usages
-            var usagesCount = 0;
-
-            var words = BinaryImage.ReadArray<ulong>(0, (int) BinaryImage.Length / (BinaryImage.Bits / 8));
-
-            // Scan the image looking for a sequential block of at least 'threshold' valid metadata tokens
-            int pos;
-            for (pos = 0; pos < words.Length && (usagesCount == 0 || sequenceLength > 0); pos++) {
-                var word = words[pos];
-
-                if (word % 2 != 1 || word >> 32 != 0) {
-                    sequenceLength = 0;
-                    continue;
+            bool CheckMetadataUsageSanity(MetadataUsage usage)
+            {
+                return usage.Type switch
+                {
+                    MetadataUsageType.TypeInfo or MetadataUsageType.Type => TypeReferences.Count > usage.SourceIndex,
+                    MetadataUsageType.MethodDef => Methods.Length > usage.SourceIndex,
+                    MetadataUsageType.FieldInfo or MetadataUsageType.FieldRva => FieldRefs.Length > usage.SourceIndex,
+                    MetadataUsageType.StringLiteral => StringLiterals.Length > usage.SourceIndex,
+                    MetadataUsageType.MethodRef => MethodSpecs.Length > usage.SourceIndex,
+                    _ => false,
+                };
                 }
-
-                var potentialUsage = MetadataUsage.FromEncodedIndex(this, (uint) word);
-                switch (potentialUsage.Type) {
-                    case MetadataUsageType.Type:
-                    case MetadataUsageType.TypeInfo:
-                    case MetadataUsageType.MethodDef:
-                    case MetadataUsageType.MethodRef:
-                    case MetadataUsageType.FieldInfo:
-                    case MetadataUsageType.StringLiteral:
-                        sequenceLength++;
-
-                        if (sequenceLength >= threshold)
-                            usagesCount = sequenceLength;
-                        break;
-                    default:
-                        sequenceLength = 0;
-                        break;
                 }
-            }
-
-            // If we found a block, read all the tokens and map them with their VAs to MetadataUsage objects
-            if (usagesCount > 0) {
-                var wordSize = BinaryImage.Bits / 8;
-                var pMetadataUsages = (uint) (pos * wordSize - (usagesCount + 1) * wordSize);
-                var pMetadataUsagesVA = BinaryImage.MapFileOffsetToVA(pMetadataUsages);
-                var usageTokens = BinaryImage.ReadWordArray(pMetadataUsages, usagesCount);
-                var usages = usageTokens.Zip(Enumerable.Range(0, usagesCount)
-                    .Select(a => pMetadataUsagesVA + (ulong) (a * wordSize)), (t, a) => MetadataUsage.FromEncodedIndex(this, (uint) t, a));
-
-                Console.WriteLine("Late binding metadata usage block found successfully for metadata v27");
-                return usages.ToList();
-            }
-
-            Console.WriteLine("Late binding metadata usage block could not be auto-detected - metadata usage references will not be available for this project");
-            return null;*/
-        }
 
         // Thumb instruction pointers have the bottom bit set to signify a switch from ARM to Thumb when jumping
         private ulong getDecodedAddress(ulong addr) {

@@ -210,38 +210,28 @@ namespace Il2CppInspector.Model
 
                     switch (usage.Type) {
                         case MetadataUsageType.StringLiteral:
-                            //if (usage.SourceIndex >= TypeModel.Package.Metadata.StringLiterals.Length)
-                            //    break;
-
                             var str = TypeModel.GetMetadataUsageName(usage);
                             Strings.Add(address, str);
                             break;
 
-                        case MetadataUsageType.Type:
-                        case MetadataUsageType.TypeInfo:
-                            //if (usage.SourceIndex >= TypeModel.TypesByReferenceIndex.Length) 
-                            //    break;
-
+                        case MetadataUsageType.Type or MetadataUsageType.TypeInfo:
                             var type = TypeModel.GetMetadataUsageType(usage);
                             declarationGenerator.IncludeType(type);
                             AddTypes(declarationGenerator.GenerateRemainingTypeDeclarations());
 
+                            if (!Types.ContainsKey(type))
+                                // Generic type definition has no associated C++ type, therefore no dictionary sub-key
+                                Types.Add(type, new AppType(type, null) { Group = Group });
+
                             if (usage.Type == MetadataUsageType.TypeInfo)
                                 // Regular type definition
                                 Types[type].TypeClassAddress = address;
-
-                            else if (!Types.ContainsKey(type))
-                                // Generic type definition has no associated C++ type, therefore no dictionary sub-key
-                                Types.Add(type, new AppType(type, null, cppTypeRefPtr: address) { Group = Group });
                             else
                                 // Regular type reference
                                 Types[type].TypeRefPtrAddress = address;
-                            break;
-                        case MetadataUsageType.MethodDef:
-                        case MetadataUsageType.MethodRef:
-                            //if (usage.SourceIndex > TypeModel.Package.Metadata.Methods.Length)
-                            //    break;
 
+                            break;
+                        case MetadataUsageType.MethodDef or MetadataUsageType.MethodRef:
                             var method = TypeModel.GetMetadataUsageMethod(usage);
                             declarationGenerator.IncludeMethod(method);
                             AddTypes(declarationGenerator.GenerateRemainingTypeDeclarations());
@@ -256,14 +246,18 @@ namespace Il2CppInspector.Model
                             Methods[method].MethodInfoPtrAddress = address;
                             break;
 
-                        case MetadataUsageType.FieldInfo:
-                            if (usage.SourceIndex > TypeModel.Package.Metadata.FieldRefs.Length)
-                                break;
-
+                        case MetadataUsageType.FieldInfo or MetadataUsageType.FieldRva:
                             var fieldRef = TypeModel.Package.FieldRefs[usage.SourceIndex];
                             var fieldType = TypeModel.GetMetadataUsageType(usage);
                             var field = fieldType.DeclaredFields.First(f => f.Index == fieldType.Definition.fieldStart + fieldRef.fieldIndex);
-                            Fields.Add(usage.VirtualAddress, $"{fieldType.Name}.{field.Name}".ToCIdentifier());
+                            
+                            if (usage.Type == MetadataUsageType.FieldInfo)
+                                Fields.Add(usage.VirtualAddress, $"{fieldType.Name}.{field.Name}".ToCIdentifier());
+                            else
+                            {
+                                var defaultValue = Package.FieldDefaultValue[field.Index];
+                                // TODO: Unsure what it could be used for here. Maybe PID array initializers?
+                            }
                             break;
                     }
                 }

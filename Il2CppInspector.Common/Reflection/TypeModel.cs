@@ -344,18 +344,21 @@ namespace Il2CppInspector.Reflection
                     type = GetMetadataUsageType(usage);
                     method = GetMetadataUsageMethod(usage);
                     return $"{type.Name}.{method.Name}";
+
+                case MetadataUsageType.FieldRva:
+                    fieldRef = Package.FieldRefs[usage.SourceIndex];
+                    type = GetMetadataUsageType(usage);
+                    field = type.DeclaredFields.First(f => f.Index == type.Definition.fieldStart + fieldRef.fieldIndex);
+                    return $"{type.Name}.{field.Name}_Default"; // TODO: Find out if this is really needed for anything
             }
             throw new NotImplementedException("Unknown metadata usage type: " + usage.Type);
         }
 
         // Get the type used in a metadata usage
         public TypeInfo GetMetadataUsageType(MetadataUsage usage) => usage.Type switch {
-            MetadataUsageType.Type => TypesByReferenceIndex[usage.SourceIndex],
-            MetadataUsageType.TypeInfo => TypesByReferenceIndex[usage.SourceIndex],
-            MetadataUsageType.MethodDef => GetMetadataUsageMethod(usage).DeclaringType,
-            MetadataUsageType.FieldInfo => TypesByReferenceIndex[Package.FieldRefs[usage.SourceIndex].typeIndex],
-            MetadataUsageType.MethodRef => GetMetadataUsageMethod(usage).DeclaringType,
-
+            MetadataUsageType.Type or MetadataUsageType.TypeInfo => TypesByReferenceIndex[usage.SourceIndex],
+            MetadataUsageType.MethodDef or MetadataUsageType.MethodRef => GetMetadataUsageMethod(usage).DeclaringType,
+            MetadataUsageType.FieldInfo or MetadataUsageType.FieldRva => TypesByReferenceIndex[Package.FieldRefs[usage.SourceIndex].typeIndex],
             _ => throw new InvalidOperationException("Incorrect metadata usage type to retrieve referenced type")
         };
 

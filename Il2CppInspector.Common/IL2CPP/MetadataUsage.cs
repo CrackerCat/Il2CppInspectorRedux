@@ -16,6 +16,7 @@ namespace Il2CppInspector
         FieldInfo = 4,
         StringLiteral = 5,
         MethodRef = 6,
+        FieldRva = 7
     }
 
     public class MetadataUsage
