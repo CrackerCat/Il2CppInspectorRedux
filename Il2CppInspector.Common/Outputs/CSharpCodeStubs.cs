@@ -426,10 +426,10 @@ namespace Il2CppInspector.Outputs
                         sb.Append($" // Metadata: {field.DefaultValueMetadataAddress.ToAddressString()}");
                     // For static array initializers, output metadata address and preview
                     if (field.HasFieldRVA && !SuppressMetadata) {
-                        var preview = model.Package.Metadata.ReadBytes((long) field.DefaultValueMetadataAddress, 8);
+                        var preview = model.Package.Metadata.ReadBytes((long) field.DefaultValueMetadataAddress, field.FieldType.Sizes.nativeSize);
                         var previewText = string.Join(" ", preview.Select(b => $"{b:x2}"));
 
-                        sb.Append($" // Starts with: {previewText} - Metadata: {field.DefaultValueMetadataAddress.ToAddressString()}");
+                        sb.Append($" // Static value: {previewText} - Metadata: {field.DefaultValueMetadataAddress.ToAddressString()}");
                     }
                     sb.Append("\n");
                 }

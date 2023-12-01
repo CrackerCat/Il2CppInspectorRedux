@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using dnlib.DotNet;
@@ -45,12 +46,26 @@ namespace Il2CppInspector.Outputs
 
             // Attribute arguments
             var attrArgs = args.Select(a =>
-                new CANamedArgument(true, module.CorLibTypes.String, a.prop, new CAArgument(module.CorLibTypes.String, a.value)));
+            {
+                var arg = ToArgument(a.value);
+                return new CANamedArgument(true, arg.Type, a.prop, arg);
+            }).ToList();
 
             var attr = new CustomAttribute(attCtorRef, null, attrArgs);
 
             def.CustomAttributes.Add(attr);
             return attr;
+
+            CAArgument ToArgument(object value)
+            {
+                return value switch
+                {
+                    string str => new CAArgument(module.CorLibTypes.String, str),
+                    int i => new CAArgument(module.CorLibTypes.Int32, i),
+                    bool b => new CAArgument(module.CorLibTypes.Boolean, b),
+                    _ => throw new UnreachableException()
+                };
+            }
         }
     }
 
@@ -249,7 +264,10 @@ namespace Il2CppInspector.Outputs
 
             // Static array initializer preview
             if (field.HasFieldRVA) {
-                var preview = model.Package.Metadata.ReadBytes((long) field.DefaultValueMetadataAddress, 8);
+                // Attempt to get field size
+                var fieldSize = field.FieldType.Sizes.nativeSize;
+
+                var preview = model.Package.Metadata.ReadBytes((long) field.DefaultValueMetadataAddress, fieldSize);
                 var previewText = string.Join(" ", preview.Select(b => $"{b:x2}"));
 
                 mField.AddAttribute(module, metadataPreviewAttribute, ("Data", previewText));

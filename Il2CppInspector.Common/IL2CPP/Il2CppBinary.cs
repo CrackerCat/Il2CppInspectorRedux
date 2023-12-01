@@ -89,6 +89,8 @@ namespace Il2CppInspector
         // One assembly may contain multiple modules
         public Dictionary<string, Il2CppCodeGenModule> Modules { get; private set; }
 
+        public List<Il2CppTypeDefinitionSizes> TypeDefinitionSizes { get; private set; }
+
         // Status update callback
         private EventHandler<string> OnStatusUpdate { get; set; }
         private void StatusUpdate(string status) => OnStatusUpdate?.Invoke(this, status);
@@ -423,6 +425,9 @@ namespace Il2CppInspector
                 GenericMethodPointers.Add(MethodSpecs[tableEntry.genericMethodIndex], genericMethodPointers[tableEntry.indices.methodIndex]);
                 GenericMethodInvokerIndices.Add(MethodSpecs[tableEntry.genericMethodIndex], tableEntry.indices.invokerIndex);
             }
+
+            TypeDefinitionSizes = Image.ReadMappedObjectPointerArray<Il2CppTypeDefinitionSizes>(
+                MetadataRegistration.typeDefinitionsSizes, (int) MetadataRegistration.typeDefinitionsSizesCount);
 
             // Plugin hook to pre-process binary
             isModified |= PluginHooks.PostProcessBinary(this).IsStreamModified;

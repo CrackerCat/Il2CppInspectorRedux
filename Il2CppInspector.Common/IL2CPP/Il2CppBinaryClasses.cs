@@ -291,4 +291,12 @@ namespace Il2CppInspector
         [Version(Min = 27.1)] 
         public int adjustorThunk;
     }
+
+    public class Il2CppTypeDefinitionSizes
+    {
+        public uint instanceSize;
+        public int nativeSize;
+        public uint staticFieldsSize;
+        public uint threadStaticFieldsSize;
+    }
 }

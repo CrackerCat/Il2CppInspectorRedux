@@ -20,6 +20,7 @@ namespace Il2CppInspector.Reflection
     {
         // IL2CPP-specific data
         public Il2CppTypeDefinition Definition { get; }
+        public Il2CppTypeDefinitionSizes Sizes { get; }
         public int Index { get; } = -1;
 
         // This dictionary will cache all instantiated generic types out of this definition.
@@ -739,6 +740,7 @@ namespace Il2CppInspector.Reflection
             var pkg = Assembly.Model.Package;
 
             Definition = pkg.TypeDefinitions[typeIndex];
+            Sizes = pkg.TypeDefinitionSizes[typeIndex];
             MetadataToken = (int) Definition.token;
             Index = typeIndex;
             Namespace = Regex.Replace(pkg.Strings[Definition.namespaceIndex], @"[^A-Za-z0-9_\-\.<>{}]", "");
