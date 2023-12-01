@@ -1,22 +1,21 @@
-# Development of Il2CppInspector is suspended
+# Il2CppInspectorRedux 2023.1
 
-It is with great regret that I have to announce that development work on Il2CppInspector has been halted for the foreseeable future.
+Il2CppInspectorRedux helps you to reverse engineer IL2CPP applications, providing the most complete analysis currently available.
 
-The reason for this is that due to health and changes in my personal life, I simply do not have time to commit to working on the project anymore. This is very frustrating for me but there is little I can really do about it.
-
-Please feel free to fork the project and make improvements! You can also continue to post issues as I would like to have a compendium of bugs and problems saved in case that I or someone else does have the opportunity to get back to working on this. Please note though, that I won't be responding to issues or PRs going forward for the foreseeable future.
-
-If you need IL2CPP tooling, I recommend my friend and colleague's excellent project [Cpp2IL](https://github.com/SamboyCoding/Cpp2IL) which is a work-in-progress tool to convert IL2CPP binaries directly back into IL code which can be easily viewed in dnSpy etc. This is a mammoth task so please do go and support his work on this amazing project!
-
-Happy hacking,
-
-Katy.
-
-# Il2CppInspector 2021.1
-
-Il2CppInspector helps you to reverse engineer IL2CPP applications, providing the most complete analysis currently available.
+This is a continuation of [Il2CppInspector, by djkaty](https://github.com/djkaty/Il2CppInspector) which has suspended development, and contains some new features and support for new metadata versions.
 
 ![Il2CppInspector GUI](docs/GUI_Preview.png)
+
+### Redux only features
+
+* Support for metadata version 29 and 29.1, with full reconstruction of custom attributes
+* Proper extraction of static array initializer contents with their correct length
+* Proper support for v27.2+ Il2CppType
+* Fixed support for v24.5
+* Export of static metadata fields and IDA script support for importing them
+* Support for [ThreadStatic] static fields
+* Better heuristic for detecting metadata usages
+* Performance improvements
 
 ### Main features
 
@@ -114,7 +113,7 @@ Nice to have:
 * Automatically defeats certain basic obfuscation methods
 * Test chassis for automated integration testing of IL2CPP binaries
 
-Class library targets .NET Core 3.1. Built with Visual Studio 2019.
+Class library targets .NET 8. Built with Visual Studio 2019.
 
 **NOTE**: Il2CppInspector is not a decompiler. It can provide you with the structure of an application and function addresses for every method so that you can easily jump straight to methods of interest in your disassembler. It does not attempt to recover the entire source code of the application.
 
@@ -332,6 +331,7 @@ Il2CppInspector generates the following data for IDA projects:
 - Comments for all IL string literal metadata pointers containing the value of the string
 - Names and types for some IL2CPP-specific data structures and functions
 - Names and typed signatures for all IL2CPP API functions that could be identified
+- (Redux only) Names for all static metadata fields (PrivateImplementationDetails)
 
 Example IDA C++ decompilation after applying Il2CppInspector (initialization code omitted for brevity):
 
@@ -566,6 +566,9 @@ The output schema is as follows:
     - `symbols` (array)
       The virtual address, name and symbol type of every named (non-zero name length) and non-zero address function definition, type, field name and import (for ELF) defined in the binary. Not currently supported for PE files.
 
+    - `fields` (array) (Redux only)
+      The virtual address and name of every static metadata field in the binary. Used for static array initializers such as the ones found in PrivateImplementationDetails.
+ 
 ### Universal IL2CPP Build Utility
 
 Three Powershell scripts are provided to enable easy building and testing of IL2CPP binaries:
@@ -732,7 +735,9 @@ Unity version | IL2CPP version | Support
 2020.1.11-2020.1.17 | 24.4 | Working
 2020.2.0-2020.2.3 | 27 | Working
 2020.2.4-2020.3.x | 27.1 | Working
-2021.1.0-2021.1.x | 27.2 | Partial
+2021.1.0-2021.1.x | 27.2 | Working
+2021.2.0-2021.2.x | 29 | Working
+2021.3.0+ | 29.1 | Working
 
 Please refer to the companion repository https://github.com/nneonneo/Il2CppVersions if you would like to track the changes between each IL2CPP release version.
 
@@ -744,11 +749,13 @@ Please check the binary file in a disassembler to ensure that it is a plain IL2C
 
 ### Support
 
-If you found Il2CppInspector useful, you can really help support the project by making a small donation at http://paypal.me/djkaty!
+If you found Il2CppInspector useful, you can really help support the project by making a small donation!
 
-You can also donate with bitcoin: 3FoRUqUXgYj8NY8sMQfhX6vv9LqR3e2kzz
+Donate to the author of Il2CppInspectorRedux, LukeFZ, via https://buymeacoffee.com/LukeFZ or https://patreon.com/LukeFZ
 
-Much love! - Katy
+Donate to the author of the original Il2CppInspector, djkaty, via http://paypal.me/djkaty or with bitcoin: 3FoRUqUXgYj8NY8sMQfhX6vv9LqR3e2kzz
+
+All donations are appreciated!
 
 ### Acknowledgements
 

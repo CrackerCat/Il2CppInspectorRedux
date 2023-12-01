@@ -1,22 +1,22 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <PublishSingleFile>true</PublishSingleFile>
     <!-- Plugins may require bass class library assemblies we're not using so disable trimming -->
     <PublishTrimmed>false</PublishTrimmed>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWPF>true</UseWPF>
     <AssemblyName>Il2CppInspector</AssemblyName>
-    <Version>2021.1</Version>
-    <Authors>Katy Coe</Authors>
+    <Version>2023.1</Version>
+    <Authors>Katy Coe, LukeFZ</Authors>
     <Company>Noisy Cow Studios</Company>
-    <Product>Il2CppInspector Windows Edition</Product>
+    <Product>Il2CppInspectorRedux Windows Edition</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Il2CppInspector.ico</ApplicationIcon>
-    <AssemblyVersion>2021.1.0.0</AssemblyVersion>
-    <FileVersion>2021.1.0.0</FileVersion>
+    <AssemblyVersion>2023.1.0.0</AssemblyVersion>
+    <FileVersion>2023.1.0.0</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.29409.12
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34227.203
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bin2Object", "Bin2Object\Bin2Object\Bin2Object.csproj", "{55382D6C-01B6-4AFD-850C-7A79DAB6F270}"
 EndProject
@@ -33,6 +33,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Il2CppInspector.GUI", "Il2CppInspector.GUI\Il2CppInspector.GUI.csproj", "{A24D77DA-8A64-4AD3-956A-677A96F20373}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{290A5778-CCBA-439B-BD5C-76D2D4848F6D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{452BE076-A87D-4731-B223-2E249C00EBC1}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build.yml = .github\workflows\build.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -62,6 +69,10 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{290A5778-CCBA-439B-BD5C-76D2D4848F6D} = {46226B08-22BA-455E-8B99-F496E90EDCBC}
+		{452BE076-A87D-4731-B223-2E249C00EBC1} = {290A5778-CCBA-439B-BD5C-76D2D4848F6D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A2F9DB35-5C65-4A94-8DD8-36FF9F3590C7}
