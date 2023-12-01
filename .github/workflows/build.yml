@@ -31,7 +31,7 @@ jobs:
         run: msbuild /t:Il2CppInspector_GUI:publish /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
 
       - name: Build CLI
-        run: msbuild /t:Il2CppInspector_CLI:publish /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+        run: msbuild /t:Il2CppInspector_CLI:publish /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net8.0 /p:SelfContained=false /verbosity:minimal
 
       - name: Upload GUI Artifact
         uses: actions/upload-artifact@v3
@@ -43,5 +43,5 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: Il2CppInspectorRedux.CLI
-          path: Il2CppInspector.CLI/bin/Release/net8.0-windows/publish
+          path: Il2CppInspector.CLI/bin/Release/net8.0/publish
 
