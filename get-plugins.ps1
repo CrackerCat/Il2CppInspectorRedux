@@ -3,6 +3,6 @@
 
 # Download the latest set of plugins to a temporary file, extract the archive then delete it
 $temp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
-wget -OutFile $temp https://github.com/djkaty/Il2CppInspectorPlugins/releases/latest/download/plugins.zip
+Invoke-WebRequest -OutFile $temp https://github.com/djkaty/Il2CppInspectorPlugins/releases/latest/download/plugins.zip
 Expand-Archive -Path $temp -DestinationPath $pwd -Force
 del $temp
