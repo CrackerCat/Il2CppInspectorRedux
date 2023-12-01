@@ -12,7 +12,6 @@ using System.Linq;
 using dnlib.DotNet;
 using dnlib.DotNet.Emit;
 using Il2CppInspector.Reflection;
-using BindingFlags = System.Reflection.BindingFlags;
 
 namespace Il2CppInspector.Outputs
 {
@@ -77,7 +76,8 @@ namespace Il2CppInspector.Outputs
         private const string rootNamespace = "Il2CppInspector.DLL";
 
         // All modules (single-module assemblies)
-        private Dictionary<Assembly, ModuleDef> modules = new Dictionary<Assembly, ModuleDef>();
+        private Dictionary<Assembly, ModuleDef> modules = [];
+        private Dictionary<ModuleDef, Dictionary<TypeInfo, TypeDefUser>> types = [];
 
         // Custom attributes we will apply directly instead of with a custom attribute function pointer
         private Dictionary<TypeInfo, TypeDef> directApplyAttributes;
@@ -157,14 +157,35 @@ namespace Il2CppInspector.Outputs
             asm.Modules.Add(module);
             return module;
         }
- 
-        // Generate type recursively with all nested types
-        private TypeDefUser CreateType(ModuleDef module, TypeInfo type) {
+
+        // Create a shallow type definition that only populates the type itself and its nested types.
+        // Used for custom attributes.
+        private TypeDefUser CreateTypeShallow(ModuleDef module, TypeInfo type)
+        {
             // Initialize with base class
-            var mType = new TypeDefUser(type.Namespace, type.BaseName, GetTypeRef(module, type.BaseType)) {
-                Attributes = (TypeAttributes) type.Attributes
+            var mType = new TypeDefUser(type.Namespace, type.BaseName, GetTypeRef(module, type.BaseType))
+            {
+                Attributes = (TypeAttributes)type.Attributes
             };
 
+            // Add nested types
+            foreach (var nestedType in type.DeclaredNestedTypes)
+                mType.NestedTypes.Add(CreateTypeShallow(module, nestedType));
+
+            if (!types.TryAdd(module, new Dictionary<TypeInfo, TypeDefUser> {[type] = mType}))
+                types[module][type] = mType;
+
+            // Add to attribute apply list if we're looking for it
+            if (directApplyAttributes.ContainsKey(type))
+                directApplyAttributes[type] = mType;
+
+            return mType;
+        }
+
+        // Populate shallow type definition with all members, events, etc.
+        // Type definition is done in a two-stage process so that attributes can reference the type beforehand
+        private TypeDefUser PopulateType(ModuleDef module, TypeDefUser mType, TypeInfo type) {
+            
             // Generic parameters
             foreach (var gp in type.GenericTypeParameters) {
                 var p = new GenericParamUser((ushort) gp.GenericParameterPosition, (GenericParamAttributes) gp.GenericParameterAttributes, gp.Name);
@@ -179,10 +200,6 @@ namespace Il2CppInspector.Outputs
             // Interfaces
             foreach (var @interface in type.ImplementedInterfaces)
                 mType.Interfaces.Add(new InterfaceImplUser(GetTypeRef(module, @interface)));
-
-            // Add nested types
-            foreach (var nestedType in type.DeclaredNestedTypes)
-                mType.NestedTypes.Add(CreateType(module, nestedType));
 
             // Add fields
             foreach (var field in type.DeclaredFields)
@@ -247,7 +264,7 @@ namespace Il2CppInspector.Outputs
 
             // Add custom attribute attributes
             foreach (var ca in field.CustomAttributes)
-            AddCustomAttribute(module, mField, ca);
+                AddCustomAttribute(module, mField, ca);
 
             mType.Fields.Add(mField);
             return mField;
@@ -309,19 +326,7 @@ namespace Il2CppInspector.Outputs
                 return null;
 
             // Return type and parameter signature
-            MethodSig s;
-            
-            // Static or instance
-            if (method.IsStatic)
-                s = MethodSig.CreateStatic(
-                    method is MethodInfo mi ? GetTypeSig(module, mi.ReturnType) : module.CorLibTypes.Void,
-                    method.DeclaredParameters.Select(p => GetTypeSig(module, p.ParameterType))
-                    .ToArray());
-            else
-                s = MethodSig.CreateInstance(
-                    method is MethodInfo mi? GetTypeSig(module, mi.ReturnType) : module.CorLibTypes.Void,
-                    method.DeclaredParameters.Select(p => GetTypeSig(module, p.ParameterType))
-                    .ToArray());
+            var s = GetMethodSig(module, method);
 
             // Definition
             var mMethod = new MethodDefUser(method.Name, s, (MethodImplAttributes) method.MethodImplementationFlags, (MethodAttributes) method.Attributes);
@@ -410,10 +415,24 @@ namespace Il2CppInspector.Outputs
             return mMethod;
         }
 
+        private MethodSig GetMethodSig(ModuleDef module, MethodBase method)
+        {
+            if (method.IsStatic)
+                return MethodSig.CreateStatic(
+                    method is MethodInfo mi ? GetTypeSig(module, mi.ReturnType) : module.CorLibTypes.Void,
+                    method.DeclaredParameters.Select(p => GetTypeSig(module, p.ParameterType))
+                        .ToArray());
+            else
+                return MethodSig.CreateInstance(
+                    method is MethodInfo mi ? GetTypeSig(module, mi.ReturnType) : module.CorLibTypes.Void,
+                    method.DeclaredParameters.Select(p => GetTypeSig(module, p.ParameterType))
+                        .ToArray());
+        }
+
         // Add a custom attributes attribute to an item, or the attribute itself if it is in our direct apply list
         private CustomAttribute AddCustomAttribute(ModuleDef module, IHasCustomAttribute def, CustomAttributeData ca) {
             if (directApplyAttributes.TryGetValue(ca.AttributeType, out var attrDef) && attrDef != null)
-                return def.AddAttribute(module, attrDef);
+                return AddAttribute(def, module, attrDef, ca);
 
             return def.AddAttribute(module, attributeAttribute,
                 ("Name", ca.AttributeType.Name),
@@ -422,13 +441,60 @@ namespace Il2CppInspector.Outputs
             );
         }
 
+        private CustomAttribute AddAttribute(IHasCustomAttribute def, ModuleDef module, TypeDef attrTypeDef, CustomAttributeData cad)
+        {
+            if (cad.CtorInfo == null)
+                return def.AddAttribute(module, attrTypeDef);
+
+            var ctorInfo = cad.CtorInfo;
+
+            var attRef = module.Import(attrTypeDef);
+            var attCtor = GetMethodSig(module, ctorInfo.Ctor);
+            var attCtorRef = new MemberRefUser(attrTypeDef.Module, ".ctor", attCtor, attRef);
+
+            var attr = new CustomAttribute(attCtorRef);
+
+            foreach (var argument in ctorInfo.Arguments)
+                attr.ConstructorArguments.Add(GetArgument(argument));
+
+            foreach (var field in ctorInfo.Fields)
+                attr.NamedArguments.Add(new CANamedArgument(true, GetTypeSig(module, field.Field.FieldType), field.Field.CSharpName, GetArgument(field)));
+
+            foreach (var property in ctorInfo.Properties)
+                attr.NamedArguments.Add(new CANamedArgument(false, GetTypeSig(module, property.Property.PropertyType), property.Property.CSharpName, GetArgument(property)));
+
+            def.CustomAttributes.Add(attr);
+
+            return attr;
+
+            CAArgument GetArgument(CustomAttributeArgument argument)
+            {
+                var typeSig = GetTypeSig(module, argument.Type);
+                
+                switch (argument.Value)
+                {
+                    case TypeInfo info:
+                        var sig = GetTypeSig(module, info);
+                        return new CAArgument(typeSig, sig);
+                    case CustomAttributeArgument[] argumentArray:
+                        return new CAArgument(new SZArraySig(typeSig),
+                            argumentArray.Select(GetArgument).ToList());
+                    case object[] caArray:
+                        return new CAArgument(new SZArraySig(typeSig),
+                            caArray.Select(x => new CustomAttributeArgument
+                            {
+                                Type = argument.Type,
+                                Value = x
+                            }).Select(GetArgument).ToList());
+                    default:
+                        return new CAArgument(typeSig, argument.Value);
+                }
+            }
+        }
+
         // Generate type recursively with all nested types and add to module
         private TypeDefUser AddType(ModuleDef module, TypeInfo type) {
-            var mType = CreateType(module, type);
-
-            // Add to attribute apply list if we're looking for it
-            if (directApplyAttributes.ContainsKey(type))
-                directApplyAttributes[type] = mType;
+            var mType = CreateTypeShallow(module, type);
 
             // Add type to module
             module.Types.Add(mType);
@@ -494,17 +560,29 @@ namespace Il2CppInspector.Outputs
         }
 
         // Generate and save all DLLs
-        public void Write(string outputPath, EventHandler<string> statusCallback = null) {
+        public void Write(string outputPath, EventHandler<string> statusCallback = null) 
+        {
 
             // Create folder for DLLs
             Directory.CreateDirectory(outputPath);
 
-            // Get all custom attributes with no parameters
-            // We'll add these directly to objects instead of the attribute generator function pointer
-            directApplyAttributes = model.TypesByDefinitionIndex
-                .Where(t => t.BaseType?.FullName == "System.Attribute"
-                        && !t.DeclaredFields.Any() && !t.DeclaredProperties.Any())
-                .ToDictionary(t => t, t => (TypeDef) null);
+            if (model.Package.Version >= 29)
+            {
+                // We can now apply all attributes directly.
+                directApplyAttributes = model.TypesByDefinitionIndex
+                    .Where(IsAttributeType)
+                    .ToDictionary(x => x, _ => (TypeDef) null);
+            }
+            else
+            {
+                // Get all custom attributes with no parameters
+                // We'll add these directly to objects instead of the attribute generator function pointer
+                directApplyAttributes = model.TypesByDefinitionIndex
+                    .Where(t => IsAttributeType(t)
+                                && t.DeclaredFields.Count == 0
+                                && t.DeclaredProperties.Count == 0)
+                    .ToDictionary(t => t, t => (TypeDef)null);
+            }
 
             // Generate blank assemblies
             // We have to do this before adding anything else so we can reference every module
@@ -524,18 +602,6 @@ namespace Il2CppInspector.Outputs
                 baseDll.Write(Path.Combine(outputPath, baseDll.Name));
             }
 
-            // Add assembly custom attribute attributes (must do this after all assemblies are created due to type referencing)
-            foreach (var asm in model.Assemblies) {
-                var module = modules[asm];
-
-                foreach (var ca in asm.CustomAttributes)
-                    AddCustomAttribute(module, module.Assembly, ca);
-
-                // Add token attributes
-                module.AddAttribute(module, tokenAttribute, ("Token", $"0x{asm.ImageDefinition.token:X8}"));
-                module.Assembly.AddAttribute(module, tokenAttribute, ("Token", $"0x{asm.MetadataToken:X8}"));
-            }
-
             // Add all types
             foreach (var asm in model.Assemblies) {
                 statusCallback?.Invoke(this, "Preparing " + asm.ShortName);
@@ -543,11 +609,34 @@ namespace Il2CppInspector.Outputs
                     AddType(modules[asm], type);
             }
 
+            foreach (var asm in model.Assemblies)
+            {
+                statusCallback?.Invoke(this, "Populating " + asm.ShortName);
+                var module = modules[asm];
+
+                // Add assembly custom attribute attributes (must do this after all assemblies and types are created due to type referencing)
+                foreach (var ca in asm.CustomAttributes)
+                    AddCustomAttribute(module, module.Assembly, ca);
+
+                // Add token attributes
+                module.AddAttribute(module, tokenAttribute, ("Token", $"0x{asm.ImageDefinition.token:X8}"));
+                module.Assembly.AddAttribute(module, tokenAttribute, ("Token", $"0x{asm.MetadataToken:X8}"));
+
+                if (types.TryGetValue(module, out var shallowTypes))
+                    foreach (var (typeInfo, typeDef) in shallowTypes)
+                        PopulateType(module, typeDef, typeInfo);
+            }
+
             // Write all assemblies to disk
             foreach (var asm in modules.Values) {
                 statusCallback?.Invoke(this, "Generating " + asm.Name);
                 asm.Write(Path.Combine(outputPath, asm.Name));
             }
+
+            return;
+
+            static bool IsAttributeType(TypeInfo type) =>
+                type.FullName == "System.Attribute" || (type.BaseType != null && IsAttributeType(type.BaseType));
         }
     }
 }

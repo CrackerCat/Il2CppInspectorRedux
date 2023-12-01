@@ -200,7 +200,7 @@ namespace Il2CppInspector.Outputs
 
             // Add assembly attribute namespaces to reference list
             if (outputAssemblyAttributes)
-                nsRefs.UnionWith(assemblies.SelectMany(a => a.CustomAttributes).Select(a => a.AttributeType.Namespace));
+                nsRefs.UnionWith(assemblies.SelectMany(a => a.CustomAttributes).SelectMany(a => a.GetAllTypeReferences()).Select(x => x.Namespace));
 
             var results = new ConcurrentBag<Dictionary<TypeInfo, StringBuilder>>();
 
@@ -287,7 +287,7 @@ namespace Il2CppInspector.Outputs
                 var ns = refs.Where(r => !string.IsNullOrEmpty(r.Namespace) && r.Namespace != type.Namespace).Select(r => r.Namespace);
                 nsRefs.UnionWith(ns);
             }
-            nsRefs.UnionWith(assemblies.SelectMany(a => a.CustomAttributes).Select(a => a.AttributeType.Namespace));
+            nsRefs.UnionWith(assemblies.SelectMany(a => a.CustomAttributes).SelectMany(a => a.GetAllTypeReferences()).Select(x => x.Namespace));
 
             var usings = nsRefs.OrderBy(n => (n.StartsWith("System.") || n == "System") ? "0" + n : "1" + n);
 

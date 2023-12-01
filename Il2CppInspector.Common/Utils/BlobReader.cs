@@ -1,6 +1,7 @@
 ﻿using NoisyCowStudios.Bin2Object;
 using System.Text;
 using System;
+using System.Diagnostics;
 
 namespace Il2CppInspector.Utils;
 
@@ -70,6 +71,10 @@ public static class BlobReader
                 if (length == -1)
                     break;
 
+                // This is only used in custom arguments.
+                // We actually want the reflection TypeInfo here, but as we do not have it yet
+                // we store everything in a custom array type to be changed out later in the TypeModel.
+
                 var arrayElementType = ReadEncodedTypeEnum(inspector, blob, out var arrayElementDef);
                 var arrayElementsAreDifferent = blob.ReadByte();
 
@@ -79,10 +84,10 @@ public static class BlobReader
                     for (int i = 0; i < length; i++)
                     {
                         var elementType = ReadEncodedTypeEnum(inspector, blob, out var elementTypeDef);
-                        array[i] = new ConstantBlobArrayElement(elementTypeDef, GetConstantValueFromBlob(inspector, elementType, blob));
+                        array[i] = new ConstantBlobArrayElement(elementTypeDef, GetConstantValueFromBlob(inspector, elementType, blob), elementType);
                     }
 
-                    value = new ConstantBlobArray(arrayElementDef, array);
+                    value = new ConstantBlobArray(arrayElementDef, array, true, arrayElementType);
                 }
                 else
                 {
@@ -92,7 +97,7 @@ public static class BlobReader
                         array[i] = GetConstantValueFromBlob(inspector, arrayElementType, blob);
                     }
 
-                    value = new ConstantBlobArray(arrayElementDef, array);
+                    value = new ConstantBlobArray(arrayElementDef, array, false, arrayElementType);
                 }
 
                 break;
@@ -107,8 +112,11 @@ public static class BlobReader
                     value = inspector.TypeReferences[index];
 
                 break;
-
-
+            case Il2CppTypeEnum.IL2CPP_TYPE_VALUETYPE:
+                break;
+            default:
+                Debugger.Break();
+                break;
         }
 
         return value;
@@ -123,15 +131,19 @@ public static class BlobReader
         if (typeEnum == Il2CppTypeEnum.IL2CPP_TYPE_ENUM)
         {
             var typeIndex = blob.ReadCompressedInt32();
-            enumType = inspector.TypeDefinitions[typeIndex];
-            typeEnum = inspector.TypeReferences[enumType.byvalTypeIndex].type;
+            var typeHandle = (uint)inspector.TypeReferences[typeIndex].datapoint;
+            enumType = inspector.TypeDefinitions[typeHandle];
+            var elementTypeHandle = inspector.TypeReferences[enumType.elementTypeIndex].datapoint;
+            var elementType = inspector.TypeDefinitions[elementTypeHandle];
+
+            typeEnum = inspector.TypeReferences[elementType.byvalTypeIndex].type;
         }
         // This technically also handles SZARRAY (System.Array) and all others by just returning their system type
 
         return typeEnum;
     }
 
-    public record ConstantBlobArray(Il2CppTypeDefinition ArrayTypeDef, object[] Elements);
+    public record ConstantBlobArray(Il2CppTypeDefinition ArrayTypeDef, object[] Elements, bool DifferentElements, Il2CppTypeEnum ArrayTypeEnum);
 
-    public record ConstantBlobArrayElement(Il2CppTypeDefinition TypeDef, object value);
+    public record ConstantBlobArrayElement(Il2CppTypeDefinition TypeDef, object Value, Il2CppTypeEnum TypeEnum);
 }

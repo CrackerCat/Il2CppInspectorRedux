@@ -6,7 +6,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -22,29 +21,90 @@ namespace Il2CppInspector.Reflection
             var sb = new StringBuilder();
 
             foreach (var cad in attributes) {
-                // Find a constructor that either has no parameters, or all optional parameters
-                var parameterlessConstructor = cad.AttributeType.DeclaredConstructors.Any(c => !c.IsStatic && c.IsPublic && c.DeclaredParameters.All(p => p.IsOptional));
+                if (cad.CtorInfo != null)
+                {
+                    // v29+ attribute handling
+                    // We now have much more information, so we can reconstruct the actual attribute
+                    var ctor = cad.CtorInfo;
 
-                // IL2CPP doesn't retain attribute arguments so we have to comment out those with non-optional arguments if we want the output to compile
-                var commentStart = mustCompile && !parameterlessConstructor? inline? "/* " : "// " : "";
-                var commentEnd = commentStart.Length > 0 && inline? " */" : "";
-                var arguments = "";
+                    var name = ctor.Ctor.DeclaringType.GetScopedCSharpName(scope);
+                    var suffix = name.LastIndexOf("Attribute", StringComparison.Ordinal);
+                    if (suffix != -1)
+                        name = name[..suffix];
 
-                // Set AttributeUsage(AttributeTargets.All) if making output that compiles to mitigate CS0592
-                if (mustCompile && cad.AttributeType.FullName == "System.AttributeUsageAttribute") {
-                    commentStart = "";
-                    commentEnd = "";
-                    arguments = "(AttributeTargets.All)";
+                    sb.Append(linePrefix);
+                    sb.Append('[');
+                    sb.Append(attributePrefix);
+                    sb.Append(name);
+
+                    var totalCount = ctor.Arguments.Length + ctor.Fields.Length + ctor.Properties.Length;
+
+                    if (totalCount > 0)
+                    {
+                        // We have parameters, need to use brackets
+                        sb.Append('(');
+
+                        var totalIndex = 0;
+                        foreach (var argument in ctor.Arguments)
+                        {
+                            sb.Append(argument.Value.ToCSharpValue(argument.Type, scope));
+                            if (++totalIndex != totalCount)
+                                sb.Append(", ");
+                        }
+
+                        foreach (var field in ctor.Fields)
+                        {
+                            sb.Append(field.Field.CSharpName);
+                            sb.Append(" = ");
+                            sb.Append(field.Value.ToCSharpValue(field.Type, scope));
+                            if (++totalIndex != totalCount)
+                                sb.Append(", ");
+                        }
+
+                        foreach (var property in ctor.Properties)
+                        {
+                            sb.Append(property.Property.CSharpName);
+                            sb.Append(" = ");
+                            sb.Append(property.Value.ToCSharpValue(property.Type, scope));
+                            if (++totalIndex != totalCount)
+                                sb.Append(", ");
+                        }
+
+                        sb.Append(')');
+                    }
+
+                    sb.Append(']');
+                    sb.Append(inline ? " " : "\n");
                 }
+                else
+                {
+                    // Pre-v29 attribute handling
 
-                var name = cad.AttributeType.GetScopedCSharpName(scope);
-                var suffix = name.LastIndexOf("Attribute", StringComparison.Ordinal);
-                if (suffix != -1)
-                    name = name[..suffix];
-                sb.Append($"{linePrefix}{commentStart}[{attributePrefix}{name}{arguments}]{commentEnd}");
-                if (emitPointer)
-                    sb.Append($" {(inline? "/*" : "//")} {cad.VirtualAddress.ToAddressString()}{(inline? " */" : "")}");
-                sb.Append(inline? " ":"\n");
+                    // Find a constructor that either has no parameters, or all optional parameters
+                    var parameterlessConstructor = cad.AttributeType.DeclaredConstructors.Any(c => !c.IsStatic && c.IsPublic && c.DeclaredParameters.All(p => p.IsOptional));
+
+                    // IL2CPP doesn't retain attribute arguments so we have to comment out those with non-optional arguments if we want the output to compile
+                    var commentStart = mustCompile && !parameterlessConstructor ? inline ? "/* " : "// " : "";
+                    var commentEnd = commentStart.Length > 0 && inline ? " */" : "";
+                    var arguments = "";
+
+                    // Set AttributeUsage(AttributeTargets.All) if making output that compiles to mitigate CS0592
+                    if (mustCompile && cad.AttributeType.FullName == "System.AttributeUsageAttribute")
+                    {
+                        commentStart = "";
+                        commentEnd = "";
+                        arguments = "(AttributeTargets.All)";
+                    }
+
+                    var name = cad.AttributeType.GetScopedCSharpName(scope);
+                    var suffix = name.LastIndexOf("Attribute", StringComparison.Ordinal);
+                    if (suffix != -1)
+                        name = name[..suffix];
+                    sb.Append($"{linePrefix}{commentStart}[{attributePrefix}{name}{arguments}]{commentEnd}");
+                    if (emitPointer)
+                        sb.Append($" {(inline ? "/*" : "//")} {cad.VirtualAddress.ToAddressString()}{(inline ? " */" : "")}");
+                    sb.Append(inline ? " " : "\n");
+                }
             }
 
             return sb.ToString();
@@ -120,31 +180,60 @@ namespace Il2CppInspector.Reflection
 
         // Output a value in C#-friendly syntax
         public static string ToCSharpValue(this object value, TypeInfo type, Scope usingScope = null) {
-            if (value is bool)
-                return (bool) value ? "true" : "false";
-            if (value is float f)
-                return value switch {
-                    float.PositiveInfinity => "1F / 0F",
-                    float.NegativeInfinity => "-1F / 0F",
-                    float.NaN => "0F / 0F",
-                    _ => f.ToString(CultureInfo.InvariantCulture) + "f"
-                };
-            if (value is double d)
-                return value switch {
-                    double.PositiveInfinity => "1D / 0D",
-                    double.NegativeInfinity => "-1D / 0D",
-                    double.NaN => "0D / 0D",
-                    _ => d.ToString(CultureInfo.InvariantCulture)
-                };
-            if (value is string str) {
-                return $"\"{str.ToEscapedString()}\"";
+            switch (value)
+            {
+                case bool b:
+                    return b ? "true" : "false";
+                case float f:
+                    return value switch {
+                        float.PositiveInfinity => "1F / 0F",
+                        float.NegativeInfinity => "-1F / 0F",
+                        float.NaN => "0F / 0F",
+                        _ => f.ToString(CultureInfo.InvariantCulture) + "f"
+                    };
+                case double d:
+                    return value switch {
+                        double.PositiveInfinity => "1D / 0D",
+                        double.NegativeInfinity => "-1D / 0D",
+                        double.NaN => "0D / 0D",
+                        _ => d.ToString(CultureInfo.InvariantCulture)
+                    };
+                case string str:
+                    return $"\"{str.ToEscapedString()}\"";
+                case char c:
+                {
+                    var cValue = (int) c;
+                    if (cValue < 32 || cValue > 126)
+                        return $"'\\x{cValue:x4}'";
+                    return $"'{value}'";
+                }
+                case TypeInfo typeInfo:
+                    return $"typeof({typeInfo.GetScopedCSharpName(usingScope)})";
+                case object[] array:
+                    var arraySb = new StringBuilder();
+                    arraySb.Append("new ");
+                    arraySb.Append(type.GetScopedCSharpName(usingScope));
+                    arraySb.Append('[');
+                    arraySb.Append(array.Length);
+                    arraySb.Append(']');
+
+                    if (array.Length > 0)
+                    {
+                        arraySb.Append(" {");
+                        for (int i = 0; i < array.Length; i++)
+                        {
+                            if (array[i] is CustomAttributeArgument arrayArgument) // Used for array with different entries, see BlobReader for more info
+                                arraySb.Append(arrayArgument.Value.ToCSharpValue(arrayArgument.Type, usingScope));
+
+                            if (i + 1 != array.Length)
+                                arraySb.Append(", ");
+                        }
+                        arraySb.Append(" }");
+                    }
+
+                    return arraySb.ToString();
             }
-            if (value is char) {
-                var cValue = (int) (char) value;
-                if (cValue < 32 || cValue > 126)
-                    return $"'\\x{cValue:x4}'";
-                return $"'{value}'";
-            }
+
             if (type.IsEnum) {
                 var flags = type.GetCustomAttributes("System.FlagsAttribute").Any();
                 var values = type.GetEnumNames().Zip(type.GetEnumValues().OfType<object>(), (k, v) => new {k, v}).ToDictionary(x => x.k, x => x.v);

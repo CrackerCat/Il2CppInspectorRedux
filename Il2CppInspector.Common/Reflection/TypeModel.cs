@@ -57,6 +57,7 @@ namespace Il2CppInspector.Reflection
 
         // List of all generated CustomAttributeData objects by their instanceIndex into AttributeTypeIndices
         public ConcurrentDictionary<int, CustomAttributeData> AttributesByIndices { get; } = new ConcurrentDictionary<int, CustomAttributeData>();
+        public ConcurrentDictionary<int, List<CustomAttributeData>> AttributesByDataIndices { get; } = [];
 
         // List of unique custom attributes generators indexed by type (multiple indices above may refer to a single generator function)
         public Dictionary<TypeInfo, List<CustomAttributeData>> CustomAttributeGenerators { get; }
@@ -254,7 +255,7 @@ namespace Il2CppInspector.Reflection
 
                 // Primitive types
                 default:
-                    underlyingType = getTypeDefinitionFromTypeEnum(typeRef.type);
+                    underlyingType = GetTypeDefinitionFromTypeEnum(typeRef.type);
                     break;
             }
 
@@ -263,12 +264,20 @@ namespace Il2CppInspector.Reflection
         }
 
         // Basic primitive types are specified via a flag value
-        private TypeInfo getTypeDefinitionFromTypeEnum(Il2CppTypeEnum t) {
-            if ((int)t >= Il2CppConstants.FullNameTypeString.Count)
-                return null;
+        public TypeInfo GetTypeDefinitionFromTypeEnum(Il2CppTypeEnum t)
+        {
+            // IL2CPP_TYPE_IL2CPP_TYPE_INDEX is handled seperately because it has enum value 0xff
+            var fqn = t switch
+            {
+                Il2CppTypeEnum.IL2CPP_TYPE_IL2CPP_TYPE_INDEX => "System.Type",
+                _ => (int) t >= Il2CppConstants.FullNameTypeString.Count
+                    ? null
+                    : Il2CppConstants.FullNameTypeString[(int) t]
+            };
 
-            var fqn = Il2CppConstants.FullNameTypeString[(int)t];
-            return TypesByFullName[fqn];
+            return fqn == null 
+                ? null 
+                : TypesByFullName[fqn];
         }
 
         // Get a TypeRef by its virtual address
@@ -311,12 +320,11 @@ namespace Il2CppInspector.Reflection
             if (Package.Version <= 24.0)
                 return customAttributeIndex;
 
-            if (Package.Version >= 29)
+            // From v24.1 onwards, token was added to Il2CppCustomAttributeTypeRange and each Il2CppImageDefinition noted the CustomAttributeTypeRanges for the image
+            // v29 uses this same system but with CustomAttributeDataRanges instead
+            if (!Package.AttributeIndicesByToken[asm.ImageDefinition.customAttributeStart].TryGetValue((uint)token, out var index))
                 return -1;
 
-            // From v24.1 onwards, token was added to Il2CppCustomAttributeTypeRange and each Il2CppImageDefinition noted the CustomAttributeTypeRanges for the image
-            if (!Package.AttributeIndicesByToken[asm.ImageDefinition.customAttributeStart].TryGetValue((uint) token, out var index))
-                return -1;
             return index;
         }
 

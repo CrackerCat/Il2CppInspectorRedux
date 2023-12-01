@@ -1,0 +1,192 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using dnlib.DotNet;
+using Il2CppInspector.Reflection;
+using Il2CppInspector.Utils;
+using NoisyCowStudios.Bin2Object;
+
+namespace Il2CppInspector
+{
+    public class CustomAttributeDataReader
+    {
+        private readonly Il2CppInspector _inspector;
+        private readonly Assembly _assembly;
+        private readonly BinaryObjectStream _data;
+
+        private readonly uint _start;
+        private readonly uint _end;
+
+        private readonly long _ctorBufferStart;
+        private readonly long _dataBufferStart;
+
+        public uint Count { get; }
+
+        public CustomAttributeDataReader(Il2CppInspector inspector, Assembly assembly, BinaryObjectStream data, uint startOffset, uint endOffset)
+        {
+            _inspector = inspector;
+            _assembly = assembly;
+            _data = data;
+
+            _start = startOffset;
+            _end = endOffset;
+
+            data.Position = _start;
+            Count = data.ReadCompressedUInt32();
+
+            _ctorBufferStart = data.Position;
+            _dataBufferStart = _ctorBufferStart + Count * sizeof(int);
+        }
+
+        public IEnumerable<CustomAttributeCtor> Read()
+        {
+            _data.Position = _ctorBufferStart;
+
+            var ctors = new CustomAttributeCtor[Count];
+            for (int i = 0; i < Count; i++)
+            {
+                ctors[i] = new CustomAttributeCtor();
+
+                var ctorIndex = _data.ReadUInt32();
+                ctors[i].Ctor = _assembly.Model.MethodsByDefinitionIndex[ctorIndex];
+            }
+
+            _data.Position = _dataBufferStart;
+            for (int i = 0; i < Count; i++)
+            {
+                var ctor = ctors[i];
+                var attrClass = ctor.Ctor.DeclaringType;
+
+                var argumentCount = _data.ReadCompressedUInt32();
+                var fieldCount = _data.ReadCompressedUInt32();
+                var propertyCount = _data.ReadCompressedUInt32();
+
+                ctor.Arguments = new CustomAttributeArgument[argumentCount];
+                for (int j = 0; j < argumentCount; j++)
+                {
+                    ctor.Arguments[j] = new CustomAttributeArgument();
+
+                    ReadAttributeDataValue(ctor.Arguments[j]);
+                }
+
+                ctor.Fields = new CustomAttributeFieldArgument[fieldCount];
+                for (int j = 0; j < fieldCount; j++)
+                {
+                    ctor.Fields[j] = new CustomAttributeFieldArgument();
+                    ReadAttributeDataValue(ctor.Fields[j]);
+
+                    var (fieldClass, fieldIndex) = ReadCustomAttributeNamedArgumentClassAndIndex(attrClass);
+                    ctor.Fields[j].Field = fieldClass.DeclaredFields[fieldIndex];
+                }
+
+                ctor.Properties = new CustomAttributePropertyArgument[propertyCount];
+                for (int j = 0; j < propertyCount; j++)
+                {
+                    ctor.Properties[j] = new CustomAttributePropertyArgument();
+                    ReadAttributeDataValue(ctor.Properties[j]);
+
+                    var (propertyClass, propertyIndex) = ReadCustomAttributeNamedArgumentClassAndIndex(attrClass);
+                    ctor.Properties[j].Property = propertyClass.DeclaredProperties[propertyIndex];
+                }
+
+                yield return ctor;
+            }
+
+            if (_data.Position != _end)
+                Debugger.Break();
+        }
+
+        private void ReadAttributeDataValue(CustomAttributeArgument arg)
+        {
+            var type = BlobReader.ReadEncodedTypeEnum(_inspector, _data, out var typeDef);
+            var value = BlobReader.GetConstantValueFromBlob(_inspector, type, _data);
+
+            if (value is BlobReader.ConstantBlobArray blobArray)
+            {
+                arg.Type = ConvertTypeDef(blobArray.ArrayTypeDef, blobArray.ArrayTypeEnum);
+                arg.Value = blobArray.Elements.Select(ConvertAttributeValue).ToArray();
+            }
+            else
+            {
+                arg.Type = ConvertTypeDef(typeDef, type);
+                arg.Value = ConvertAttributeValue(value);
+            }
+        }
+
+        private object ConvertAttributeValue(object value)
+        {
+            switch (value)
+            {
+                case Il2CppType type:
+                    return _assembly.Model.TypesByReferenceIndex[_inspector.TypeReferences.IndexOf(type)];
+                case BlobReader.ConstantBlobArray blobArray:
+                {
+                    var arrValue = new CustomAttributeArgument
+                    {
+                        Type = ConvertTypeDef(blobArray.ArrayTypeDef, blobArray.ArrayTypeEnum),
+                        Value = blobArray.Elements.Select(ConvertAttributeValue).ToArray()
+                    };
+
+                    return arrValue;
+                }
+                case BlobReader.ConstantBlobArrayElement blobElem:
+                {
+                    var subArgument = new CustomAttributeArgument
+                    {
+                        Type = ConvertTypeDef(blobElem.TypeDef, blobElem.TypeEnum),
+                        Value = blobElem.Value
+                    };
+
+                    return subArgument;
+                }
+                default:
+                    return value;
+            }
+        }
+
+        private TypeInfo ConvertTypeDef(Il2CppTypeDefinition typeDef, Il2CppTypeEnum type)
+            => typeDef == null
+                ? _assembly.Model.GetTypeDefinitionFromTypeEnum(type)
+                : _assembly.Model.TypesByDefinitionIndex[Array.IndexOf(_inspector.TypeDefinitions, typeDef)];
+
+        private (TypeInfo, int) ReadCustomAttributeNamedArgumentClassAndIndex(TypeInfo attrInfo)
+        {
+            var memberIndex = _data.ReadCompressedInt32();
+            if (memberIndex >= 0) // Negative indices mean that it's a member of a base class
+                return (attrInfo, memberIndex);
+
+            memberIndex = -(memberIndex + 1);
+
+            var typeDefIndex = _data.ReadCompressedUInt32();
+            var typeInfo = _assembly.Model.TypesByDefinitionIndex[typeDefIndex];
+
+            return (typeInfo, memberIndex);
+        }
+    }
+
+    public class CustomAttributeCtor
+    {
+        public MethodBase Ctor { get; set; }
+        public CustomAttributeArgument[] Arguments { get; set; }
+        public CustomAttributeFieldArgument[] Fields { get; set; }
+        public CustomAttributePropertyArgument[] Properties { get; set; }
+    }
+
+    public class CustomAttributeArgument
+    {
+        public TypeInfo Type { get; set; }
+        public object Value { get; set; }
+    }
+
+    public class CustomAttributeFieldArgument : CustomAttributeArgument
+    {
+        public FieldInfo Field { get; set; }
+    }
+
+    public class CustomAttributePropertyArgument : CustomAttributeArgument
+    {
+        public PropertyInfo Property { get; set; }
+    }
+}

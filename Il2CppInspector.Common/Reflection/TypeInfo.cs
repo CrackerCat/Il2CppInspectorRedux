@@ -1010,7 +1010,7 @@ namespace Il2CppInspector.Reflection
 
             // Constructor, event, field, method, nested type, property attributes
             var attrs = DeclaredMembers.SelectMany(m => m.CustomAttributes);
-            refs.UnionWith(attrs.Select(a => a.AttributeType));
+            refs.UnionWith(attrs.SelectMany(a => a.GetAllTypeReferences()));
 
             // Events
             refs.UnionWith(DeclaredEvents.Select(e => e.EventHandlerType));
@@ -1038,7 +1038,7 @@ namespace Il2CppInspector.Reflection
                 .SelectMany(p => p.GetGenericParameterConstraints()));
 
             // Type declaration attributes
-            refs.UnionWith(CustomAttributes.Select(a => a.AttributeType));
+            refs.UnionWith(CustomAttributes.SelectMany(a => a.GetAllTypeReferences()));
 
             // Parent type
             if (BaseType != null)

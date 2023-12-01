@@ -11,7 +11,7 @@ using System.Reflection;
 using System.Text;
 
 namespace Il2CppInspector.Reflection {
-    public class FieldInfo : MemberInfo
+    public class FieldInfo : MemberInfo // L-TODO: Add support for [ThreadLocal] fields
     {
         // IL2CPP-specific data
         public Il2CppFieldDefinition Definition { get; }
