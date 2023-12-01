@@ -18,10 +18,10 @@ jobs:
         run: nuget restore
       
       - name: Build GUI
-        run: msbuild /t:Il2CppInspector.GUI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+        run: msbuild /t:Il2CppInspector_GUI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
 
       - name: Build CLI
-        run: msbuild /t:Il2CppInspector.CLI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+        run: msbuild /t:Il2CppInspector_CLI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
 
       - name: Upload GUI Artifact
         uses: actions/upload-artifact@v2

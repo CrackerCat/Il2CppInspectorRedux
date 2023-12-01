@@ -66,8 +66,8 @@
                 <!-- Footer text -->
                 <TextBlock DockPanel.Dock="Bottom" TextWrapping="WrapWithOverflow" Margin="5">
                     If you find this tool useful, please donate to help support its continued development!<LineBreak/>
-                    Donate to LukeFZ via <Hyperlink NavigateUri="http://buymeacoffee.com/LukeFZ" RequestNavigate="Hyperlink_OnRequestNavigate">BuyMeACoffee</Hyperlink>
-                    Donate to LukeFZ via <Hyperlink NavigateUri="http://patreon.com/LukeFZ" RequestNavigate="Hyperlink_OnRequestNavigate">Patreon</Hyperlink>
+                    Donate to LukeFZ via <Hyperlink NavigateUri="http://buymeacoffee.com/LukeFZ" RequestNavigate="Hyperlink_OnRequestNavigate">BuyMeACoffee</Hyperlink><LineBreak/>
+                    Donate to LukeFZ via <Hyperlink NavigateUri="http://patreon.com/LukeFZ" RequestNavigate="Hyperlink_OnRequestNavigate">Patreon</Hyperlink><LineBreak/>
                     Donate to djkaty via <Hyperlink NavigateUri="http://paypal.me/djkaty" RequestNavigate="Hyperlink_OnRequestNavigate">PayPal</Hyperlink><LineBreak/>
                     Donate to djkaty with bitcoin:<LineBreak/><TextBox IsReadOnly="True">3FoRUqUXgYj8NY8sMQfhX6vv9LqR3e2kzz</TextBox><LineBreak/>
                     <LineBreak/>
