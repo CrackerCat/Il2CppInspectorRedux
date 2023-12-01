@@ -184,6 +184,9 @@ namespace Il2CppInspector.Outputs
             {
                 Attributes = (TypeAttributes)type.Attributes
             };
+            
+            if (mType.IsExplicitLayout)
+                mType.ClassLayout = new ClassLayoutUser(1, (uint)type.Sizes.nativeSize);
 
             // Add nested types
             foreach (var nestedType in type.DeclaredNestedTypes)
@@ -265,12 +268,12 @@ namespace Il2CppInspector.Outputs
             // Static array initializer preview
             if (field.HasFieldRVA) {
                 // Attempt to get field size
+
                 var fieldSize = field.FieldType.Sizes.nativeSize;
-
                 var preview = model.Package.Metadata.ReadBytes((long) field.DefaultValueMetadataAddress, fieldSize);
-                var previewText = string.Join(" ", preview.Select(b => $"{b:x2}"));
 
-                mField.AddAttribute(module, metadataPreviewAttribute, ("Data", previewText));
+                mField.InitialValue = preview;
+                mField.AddAttribute(module, metadataPreviewAttribute, ("Data", Convert.ToHexString(preview)));
             }
 
             // Field offset
@@ -597,6 +600,9 @@ namespace Il2CppInspector.Outputs
                     .ToDictionary(t => t, t => (TypeDef)null);
             }
 
+            // Used for resolving TypeRefs, needed for static array initializers
+            var ctx = ModuleDef.CreateModuleContext();
+
             // Generate blank assemblies
             // We have to do this before adding anything else so we can reference every module
             modules.Clear();
@@ -604,6 +610,7 @@ namespace Il2CppInspector.Outputs
             foreach (var asm in model.Assemblies) {
                 // Create assembly and add primary module to list
                 var module = CreateAssembly(asm.ShortName);
+                module.Context = ctx;
                 modules.Add(asm, module);
             }
 
