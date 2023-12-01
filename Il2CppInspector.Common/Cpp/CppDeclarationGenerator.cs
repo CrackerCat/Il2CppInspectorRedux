@@ -399,10 +399,12 @@ namespace Il2CppInspector.Cpp
             var statics = types.Struct(name + "__StaticFields");
             var namer = CreateNamespace().MakeNamer<FieldInfo>((field) => field.Name.ToCIdentifier());
             foreach (var field in ti.DeclaredFields) {
-                if (field.IsLiteral || !field.IsStatic)
+                if (field.IsLiteral || !field.IsStatic || field.IsThreadStatic)
                     continue;
                 statics.AddField(namer.GetName(field), AsCType(field.FieldType));
             }
+
+            // L-TODO: Maybe add structs for StaticThreadLocalFields? not sure how useful it would be because they are resolved at runtime
 
             /* TODO: type the rgctx_data */
             var cls = types.Struct(name + "__Class");

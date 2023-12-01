@@ -97,6 +97,7 @@ namespace Il2CppInspector.Outputs
             var attributeCtorRef = new MemberRefUser(attributeTypeRef.Module, ".ctor", MethodSig.CreateInstance(module.CorLibTypes.Void), attributeTypeRef);
 
             var stringField = new FieldSig(module.CorLibTypes.String);
+            var boolField = new FieldSig(module.CorLibTypes.Boolean);
 
             // Create a type deriving from System.Attribute and add it to the assembly
             TypeDefUser createAttribute(string name) {
@@ -121,6 +122,7 @@ namespace Il2CppInspector.Outputs
 
             staticFieldOffsetAttribute = createAttribute("StaticFieldOffsetAttribute");
             staticFieldOffsetAttribute.Fields.Add(new FieldDefUser("Offset", stringField, FieldAttributes.Public));
+            staticFieldOffsetAttribute.Fields.Add(new FieldDefUser("ThreadStatic", boolField, FieldAttributes.Public));
             staticFieldOffsetAttribute.AddDefaultConstructor(attributeCtorRef);
 
             attributeAttribute = createAttribute("AttributeAttribute");
@@ -257,7 +259,7 @@ namespace Il2CppInspector.Outputs
             if (!field.IsStatic)
                 mField.AddAttribute(module, fieldOffsetAttribute, ("Offset", $"0x{field.Offset:X2}"));
             else if (!field.IsLiteral)
-                mField.AddAttribute(module, staticFieldOffsetAttribute, ("Offset", $"0x{field.Offset:X2}"));
+                mField.AddAttribute(module, staticFieldOffsetAttribute, ("ThreadStatic", field.IsThreadStatic), ("Offset", $"0x{field.Offset:X2}"));
 
             // Add token attribute
             mField.AddAttribute(module, tokenAttribute, ("Token", $"0x{field.MetadataToken:X8}"));

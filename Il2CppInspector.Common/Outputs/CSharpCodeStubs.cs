@@ -396,6 +396,9 @@ namespace Il2CppInspector.Outputs
                     if (field.IsNotSerialized)
                         sb.Append(prefix + "\t[NonSerialized]\n");
 
+                    if (field.IsThreadStatic)
+                        sb.Append(prefix + "\t[ThreadStatic]\n");
+
                     // Attributes
                     sb.Append(field.CustomAttributes.Where(a => a.AttributeType.FullName != FBAttribute).OrderBy(a => a.AttributeType.Name)
                         .ToString(scope, prefix + "\t", emitPointer: !SuppressMetadata, mustCompile: MustCompile));

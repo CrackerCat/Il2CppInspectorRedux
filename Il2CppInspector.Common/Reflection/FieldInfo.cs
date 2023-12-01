@@ -29,6 +29,8 @@ namespace Il2CppInspector.Reflection {
         public bool HasFieldRVA => (Attributes & FieldAttributes.HasFieldRVA) != 0;
         public ulong DefaultValueMetadataAddress { get; }
 
+        public bool IsThreadStatic { get; }
+
         // Custom attributes for this member
         public override IEnumerable<CustomAttributeData> CustomAttributes => CustomAttributeData.GetCustomAttributes(rootDefinition);
 
@@ -96,6 +98,11 @@ namespace Il2CppInspector.Reflection {
             Name = pkg.Strings[Definition.nameIndex];
 
             rawOffset = pkg.FieldOffsets[fieldIndex];
+            if (0 > rawOffset)
+            {
+                IsThreadStatic = true;
+                rawOffset &= ~0x80000000;
+            }
 
             rootDefinition = this;
 
