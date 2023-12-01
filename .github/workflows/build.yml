@@ -33,6 +33,16 @@ jobs:
       - name: Build CLI
         run: msbuild /t:Il2CppInspector_CLI:publish /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net8.0 /p:SelfContained=false /verbosity:minimal
 
+      - name: Add Plugins folder (GUI)
+        shell: pwsh
+        working-directory: Il2CppInspector.GUI/bin/Release/net8.0-windows/win-x64/publish
+        run: ../../../../../../get-plugins.ps1
+
+      - name: Add Plugins folder (CLI)
+        shell: pwsh
+        working-directory: Il2CppInspector.CLI/bin/Release/net8.0/win-x64/publish
+        run: ../../../../../../get-plugins.ps1
+
       - name: Upload GUI Artifact
         uses: actions/upload-artifact@v3
         with:
