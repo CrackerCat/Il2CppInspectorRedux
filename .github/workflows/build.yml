@@ -11,20 +11,30 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
       - uses: microsoft/setup-msbuild@v1.1
+  
+      - uses: actions/cache@v3
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+              ${{ runner.os }}-nuget-
 
       - name: Restore NuGet packages
         run: nuget restore
       
       - name: Build GUI
-        run: msbuild /t:Il2CppInspector_GUI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+        run: msbuild /t:Il2CppInspector_GUI:publish /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
 
       - name: Build CLI
-        run: msbuild /t:Il2CppInspector_CLI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+        run: msbuild /t:Il2CppInspector_CLI:publish /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
 
       - name: Upload GUI Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: Il2CppInspectorRedux.GUI
           path: Il2CppInspector.GUI/bin/Release/net8.0-windows/publish
