@@ -209,7 +209,7 @@ namespace Il2CppInspector.Reflection
                 }
                 case TypeInfo typeInfo:
                     return $"typeof({typeInfo.GetScopedCSharpName(usingScope)})";
-                case object[] array:
+                case CustomAttributeArgument[] array:
                     var arraySb = new StringBuilder();
                     arraySb.Append("new ");
                     arraySb.Append(type.GetScopedCSharpName(usingScope));
@@ -222,8 +222,7 @@ namespace Il2CppInspector.Reflection
                         arraySb.Append(" {");
                         for (int i = 0; i < array.Length; i++)
                         {
-                            if (array[i] is CustomAttributeArgument arrayArgument) // Used for array with different entries, see BlobReader for more info
-                                arraySb.Append(arrayArgument.Value.ToCSharpValue(arrayArgument.Type, usingScope));
+                            arraySb.Append(array[i].Value.ToCSharpValue(array[i].Type, usingScope));
 
                             if (i + 1 != array.Length)
                                 arraySb.Append(", ");

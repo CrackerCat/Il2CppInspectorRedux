@@ -75,10 +75,6 @@ namespace Il2CppInspector.Reflection
                             foreach (var info in GetTypeReferences(array))
                                 yield return info;
                             break;
-                        case TypeInfo[] infos:
-                            foreach (var info in infos)
-                                yield return info;
-                            break;
                     }
                 }
             }

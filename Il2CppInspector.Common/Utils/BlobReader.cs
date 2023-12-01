@@ -78,27 +78,24 @@ public static class BlobReader
                 var arrayElementType = ReadEncodedTypeEnum(inspector, blob, out var arrayElementDef);
                 var arrayElementsAreDifferent = blob.ReadByte();
 
+                var array = new ConstantBlobArrayElement[length];
                 if (arrayElementsAreDifferent == kArrayTypeWithDifferentElements)
                 {
-                    var array = new ConstantBlobArrayElement[length];
                     for (int i = 0; i < length; i++)
                     {
                         var elementType = ReadEncodedTypeEnum(inspector, blob, out var elementTypeDef);
                         array[i] = new ConstantBlobArrayElement(elementTypeDef, GetConstantValueFromBlob(inspector, elementType, blob), elementType);
                     }
-
-                    value = new ConstantBlobArray(arrayElementDef, array, true, arrayElementType);
                 }
                 else
                 {
-                    var array = new object[length];
                     for (int i = 0; i < length; i++)
                     {
-                        array[i] = GetConstantValueFromBlob(inspector, arrayElementType, blob);
+                        array[i] = new ConstantBlobArrayElement(arrayElementDef, GetConstantValueFromBlob(inspector, arrayElementType, blob), arrayElementType);
                     }
-
-                    value = new ConstantBlobArray(arrayElementDef, array, false, arrayElementType);
                 }
+
+                value = new ConstantBlobArray(arrayElementDef, array, arrayElementType);
 
                 break;
 
@@ -133,9 +130,9 @@ public static class BlobReader
             var typeIndex = blob.ReadCompressedInt32();
             var typeHandle = (uint)inspector.TypeReferences[typeIndex].datapoint;
             enumType = inspector.TypeDefinitions[typeHandle];
+
             var elementTypeHandle = inspector.TypeReferences[enumType.elementTypeIndex].datapoint;
             var elementType = inspector.TypeDefinitions[elementTypeHandle];
-
             typeEnum = inspector.TypeReferences[elementType.byvalTypeIndex].type;
         }
         // This technically also handles SZARRAY (System.Array) and all others by just returning their system type
@@ -143,7 +140,7 @@ public static class BlobReader
         return typeEnum;
     }
 
-    public record ConstantBlobArray(Il2CppTypeDefinition ArrayTypeDef, object[] Elements, bool DifferentElements, Il2CppTypeEnum ArrayTypeEnum);
+    public record ConstantBlobArray(Il2CppTypeDefinition ArrayTypeDef, ConstantBlobArrayElement[] Elements, Il2CppTypeEnum ArrayTypeEnum);
 
     public record ConstantBlobArrayElement(Il2CppTypeDefinition TypeDef, object Value, Il2CppTypeEnum TypeEnum);
 }

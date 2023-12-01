@@ -479,13 +479,6 @@ namespace Il2CppInspector.Outputs
                     case CustomAttributeArgument[] argumentArray:
                         return new CAArgument(new SZArraySig(typeSig),
                             argumentArray.Select(GetArgument).ToList());
-                    case object[] caArray:
-                        return new CAArgument(new SZArraySig(typeSig),
-                            caArray.Select(x => new CustomAttributeArgument
-                            {
-                                Type = argument.Type,
-                                Value = x
-                            }).Select(GetArgument).ToList());
                     default:
                         return new CAArgument(typeSig, argument.Value);
                 }

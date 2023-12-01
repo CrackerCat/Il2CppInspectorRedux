@@ -103,15 +103,17 @@ namespace Il2CppInspector
             var type = BlobReader.ReadEncodedTypeEnum(_inspector, _data, out var typeDef);
             var value = BlobReader.GetConstantValueFromBlob(_inspector, type, _data);
 
-            if (value is BlobReader.ConstantBlobArray blobArray)
+            value = ConvertAttributeValue(value);
+
+            if (value is CustomAttributeArgument valueAttr)
             {
-                arg.Type = ConvertTypeDef(blobArray.ArrayTypeDef, blobArray.ArrayTypeEnum);
-                arg.Value = blobArray.Elements.Select(ConvertAttributeValue).ToArray();
+                arg.Type = valueAttr.Type;
+                arg.Value = valueAttr.Value;
             }
             else
             {
                 arg.Type = ConvertTypeDef(typeDef, type);
-                arg.Value = ConvertAttributeValue(value);
+                arg.Value = value;
             }
         }
 
@@ -126,20 +128,14 @@ namespace Il2CppInspector
                     var arrValue = new CustomAttributeArgument
                     {
                         Type = ConvertTypeDef(blobArray.ArrayTypeDef, blobArray.ArrayTypeEnum),
-                        Value = blobArray.Elements.Select(ConvertAttributeValue).ToArray()
+                        Value = blobArray.Elements.Select(blobElem => new CustomAttributeArgument
+                        {
+                            Type = ConvertTypeDef(blobElem.TypeDef, blobElem.TypeEnum),
+                            Value = ConvertAttributeValue(blobElem.Value)
+                        }).ToArray()
                     };
 
                     return arrValue;
-                }
-                case BlobReader.ConstantBlobArrayElement blobElem:
-                {
-                    var subArgument = new CustomAttributeArgument
-                    {
-                        Type = ConvertTypeDef(blobElem.TypeDef, blobElem.TypeEnum),
-                        Value = blobElem.Value
-                    };
-
-                    return subArgument;
                 }
                 default:
                     return value;
