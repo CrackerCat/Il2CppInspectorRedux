@@ -1,0 +1,37 @@
+name: Il2CppInspectorRedux Build
+
+on:
+  push:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: microsoft/setup-msbuild@v1.1
+
+      - name: Restore NuGet packages
+        run: nuget restore
+      
+      - name: Build GUI
+        run: msbuild /t:Il2CppInspector.GUI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+
+      - name: Build CLI
+        run: msbuild /t:Il2CppInspector.CLI:publish /p:Configuration=Release /p:Platform=x64 /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+
+      - name: Upload GUI Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: Il2CppInspectorRedux.GUI
+          path: Il2CppInspector.GUI/bin/Release/net8.0-windows/publish
+
+      - name: Upload CLI Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: Il2CppInspectorRedux.CLI
+          path: Il2CppInspector.CLI/bin/Release/net8.0-windows/publish
+
