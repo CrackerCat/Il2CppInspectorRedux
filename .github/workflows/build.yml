@@ -37,11 +37,11 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Il2CppInspectorRedux.GUI
-          path: Il2CppInspector.GUI/bin/Release/net8.0-windows/publish
+          path: Il2CppInspector.GUI/bin/Release/net8.0-windows/win-x64/publish
 
       - name: Upload CLI Artifact
         uses: actions/upload-artifact@v2
         with:
           name: Il2CppInspectorRedux.CLI
-          path: Il2CppInspector.CLI/bin/Release/net8.0/publish
+          path: Il2CppInspector.CLI/bin/Release/net8.0/win-x64/publish
 
