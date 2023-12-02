@@ -67,7 +67,7 @@ namespace Il2CppInspector.Outputs
             File.WriteAllText(outputFile, script);
         }
 
-        private void writeTypes(string typeHeaderFile) => new CppScaffolding(model).WriteTypes(typeHeaderFile);
+        private void writeTypes(string typeHeaderFile) => new CppScaffolding(model, useBetterArraySize: true).WriteTypes(typeHeaderFile);
 
         private void writeJsonMetadata(string jsonMetadataFile) => new JSONMetadata(model).Write(jsonMetadataFile);
 

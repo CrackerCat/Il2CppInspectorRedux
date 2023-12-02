@@ -1846,7 +1846,7 @@ typedef struct Il2CppAppContext
     int32_t context_id;
     void* static_data;
 } Il2CppAppContext;
-struct Il2CppDecimal
+typedef struct Il2CppDecimal
 {
     uint16_t reserved;
     union
@@ -1868,7 +1868,7 @@ struct Il2CppDecimal
         } v;
         uint64_t Lo64;
     } v;
-} Il2CppClass;
+} Il2CppDecimal;
 typedef struct Il2CppDouble
 {
     uint32_t mantLo : 32;

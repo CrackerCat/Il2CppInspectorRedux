@@ -1,7 +1,7 @@
 ﻿/*
     Copyright 2017-2021 Katy Coe - http://www.djkaty.com - https://github.com/djkaty
     Copyright 2020 Robert Xiao - https://robertxiao.ca
-
+    Copyright 2023 LukeFZ - https://github.com/LukeFZ
     All rights reserved.
 */
 
@@ -10,12 +10,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using NoisyCowStudios.Bin2Object;
 
 namespace Il2CppInspector.Cpp.UnityHeaders
 {
     // Parsed representation of a Unity version number, such as 5.3.0f1 or 2019.3.7.
-    public class UnityVersion : IComparable<UnityVersion>, IEquatable<UnityVersion>
+    public partial class UnityVersion : IComparable<UnityVersion>, IEquatable<UnityVersion>
     {
         // A sorted enumeration of build types, in order of maturity
         public enum BuildTypeEnum
@@ -58,7 +57,7 @@ namespace Il2CppInspector.Cpp.UnityHeaders
         public int BuildNumber { get; }
 
         public UnityVersion(string versionString) {
-            var match = Regex.Match(versionString, @"^(\d+)\.(\d+)(?:\.(\d+))?(?:([a-zA-Z]+)(\d+))?$");
+            var match = VersionRegex().Match(versionString);
             if (!match.Success)
                 throw new ArgumentException($"'${versionString}' is not a valid Unity version number.");
             Major = int.Parse(match.Groups[1].Value);
@@ -88,7 +87,7 @@ namespace Il2CppInspector.Cpp.UnityHeaders
             return new UnityVersion(unityString);
         }
 
-        public static implicit operator UnityVersion(string versionString) => new UnityVersion(versionString);
+        public static implicit operator UnityVersion(string versionString) => new(versionString);
 
         public override string ToString() {
             var res = $"{Major}.{Minor}.{Update}";
@@ -143,6 +142,9 @@ namespace Il2CppInspector.Cpp.UnityHeaders
         }
 
         public override int GetHashCode() => HashCode.Combine(Major, Minor, Update, BuildType, BuildNumber);
+
+        [GeneratedRegex(@"^(\d+)\.(\d+)(?:\.(\d+))?(?:([a-zA-Z]+)(\d+))?$")]
+        private static partial Regex VersionRegex();
     }
 
     // A range of Unity versions

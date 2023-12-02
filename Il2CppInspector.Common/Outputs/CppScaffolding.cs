@@ -1,5 +1,6 @@
 ﻿// Copyright 2020 Robert Xiao - https://robertxiao.ca/
 // Copyright (c) 2020-2021 Katy Coe - http://www.djkaty.com - https://github.com/djkaty
+// Copyright (c) 2023 LukeFZ https://github.com/LukeFZ
 // All rights reserved
 
 using System;
@@ -15,81 +16,105 @@ using Il2CppInspector.Properties;
 
 namespace Il2CppInspector.Outputs
 {
-    public class CppScaffolding
+    public partial class CppScaffolding(AppModel model, bool useBetterArraySize = false)
     {
-        private readonly AppModel model;
-        private StreamWriter writer;
+        private readonly AppModel _model = model;
 
-        private readonly Regex rgxGCCalign = new Regex(@"__attribute__\s*?\(\s*?\(\s*?aligned\s*?\(\s*?([0-9]+)\s*?\)\s*?\)\s*?\)");
-        private readonly Regex rgxMSVCalign = new Regex(@"__declspec\s*?\(\s*?align\s*?\(\s*?([0-9]+)\s*?\)\s*?\)");
+        /*
+         * 2017.2.1 changed the type of il2cpp_array_size_t to uintptr_t from int32_t. The code, however, uses static_cast<int32_t>(maxLength) to access this value,
+         * which makes decompilation a bit unpleasant due to it only ever checking the lower 32 bits.
+         * The better array size type is a union of the actual size (int32_t) and the actual value (uintptr_t) which should hopefully improve decompilation.
+         */
+        private readonly bool _useBetterArraySize = 
+            model.UnityVersion.CompareTo("2017.2.1") >= 0 
+            && model.Package.BinaryImage.Bits == 64 
+            && useBetterArraySize;
 
-        public CppScaffolding(AppModel model) => this.model = model;
+        private StreamWriter _writer;
 
         // Write the type header
         // This can be used by other output modules
         public void WriteTypes(string typeHeaderFile) {
             using var fs = new FileStream(typeHeaderFile, FileMode.Create);
-            writer = new StreamWriter(fs, Encoding.ASCII);
+            _writer = new StreamWriter(fs, Encoding.ASCII);
 
-            writeHeader();
+            using (_writer)
+            {
+                writeHeader();
 
-            // Write primitive type definitions for when we're not including other headers
-            writeCode($@"#if defined(_GHIDRA_) || defined(_IDA_)
-typedef unsigned __int8 uint8_t;
-typedef unsigned __int16 uint16_t;
-typedef unsigned __int32 uint32_t;
-typedef unsigned __int64 uint64_t;
-typedef __int8 int8_t;
-typedef __int16 int16_t;
-typedef __int32 int32_t;
-typedef __int64 int64_t;
-#endif
+                // Write primitive type definitions for when we're not including other headers
+                writeCode($$"""
+                       #if defined(_GHIDRA_) || defined(_IDA_)
+                       typedef unsigned __int8 uint8_t;
+                       typedef unsigned __int16 uint16_t;
+                       typedef unsigned __int32 uint32_t;
+                       typedef unsigned __int64 uint64_t;
+                       typedef __int8 int8_t;
+                       typedef __int16 int16_t;
+                       typedef __int32 int32_t;
+                       typedef __int64 int64_t;
+                       #endif
 
-#if defined(_GHIDRA_)
-typedef __int{model.Package.BinaryImage.Bits} size_t;
-typedef size_t intptr_t;
-typedef size_t uintptr_t;
-#endif
+                       #if defined(_GHIDRA_)
+                       typedef __int{{_model.Package.BinaryImage.Bits}} size_t;
+                       typedef size_t intptr_t;
+                       typedef size_t uintptr_t;
+                       #endif
 
-#if !defined(_GHIDRA_) && !defined(_IDA_)
-#define _CPLUSPLUS_
-#endif
-");
+                       #if !defined(_GHIDRA_) && !defined(_IDA_)
+                       #define _CPLUSPLUS_
+                       #endif
+                       """);
 
-            writeSectionHeader("IL2CPP internal types");
-            writeCode(model.UnityHeaders.GetTypeHeaderText(model.WordSizeBits));
+                if (_useBetterArraySize)
+                    writeCode("#define il2cpp_array_size_t actual_il2cpp_array_size_t");
 
-            // Stop MSVC complaining about out-of-bounds enum values
-            if (model.TargetCompiler == CppCompilerType.MSVC)
-                writeCode("#pragma warning(disable : 4369)");
+                writeSectionHeader("IL2CPP internal types");
+                writeCode(_model.UnityHeaders.GetTypeHeaderText(_model.WordSizeBits));
 
-            // Stop MSVC complaining about constant truncation of enum values
-            if (model.TargetCompiler == CppCompilerType.MSVC)
-                writeCode("#pragma warning(disable : 4309)");
+                if (_useBetterArraySize)
+                    writeCode("""
+                          #undef il2cpp_array_size_t
+                          
+                          typedef union better_il2cpp_array_size_t
+                          {
+                               int32_t size;
+                               actual_il2cpp_array_size_t value;
+                          } better_il2cpp_array_size_t;
+                          
+                          #define il2cpp_array_size_t better_il2cpp_array_size_t
+                          """);
 
-            // MSVC will (rightly) throw a compiler warning when compiling for 32-bit architectures
-            // if the specified alignment of a type is smaller than the size of its largest element.
-            // We keep the alignments in to make them match Il2CppObject wherever possible, but it is
-            // safe to ignore them if they are too small, so we just disable the warning
-            if (model.TargetCompiler == CppCompilerType.MSVC)
-                writeCode("#pragma warning(disable : 4359)");
+                if (_model.TargetCompiler == CppCompilerType.MSVC)
+                {
+                    // Stop MSVC complaining about out-of-bounds enum values
+                    writeCode("#pragma warning(disable : 4369)");
 
-            // C does not support namespaces
-            writeCode("#if !defined(_GHIDRA_) && !defined(_IDA_)");
-            writeCode("namespace app {");
-            writeCode("#endif");
-            writeLine("");
+                    // Stop MSVC complaining about constant truncation of enum values
+                    writeCode("#pragma warning(disable : 4309)");
 
-            writeTypesForGroup("Application types from method calls", "types_from_methods");
-            writeTypesForGroup("Application types from generic methods", "types_from_generic_methods");
-            writeTypesForGroup("Application types from usages", "types_from_usages");
-            writeTypesForGroup("Application unused value types", "unused_concrete_types");
+                    // MSVC will (rightly) throw a compiler warning when compiling for 32-bit architectures
+                    // if the specified alignment of a type is smaller than the size of its largest element.
+                    // We keep the alignments in to make them match Il2CppObject wherever possible, but it is
+                    // safe to ignore them if they are too small, so we just disable the warning
+                    writeCode("#pragma warning(disable : 4359)");
+                }
 
-            writeCode("#if !defined(_GHIDRA_) && !defined(_IDA_)");
-            writeCode("}");
-            writeCode("#endif");
+                // C does not support namespaces
+                writeCode("#if !defined(_GHIDRA_) && !defined(_IDA_)");
+                writeCode("namespace app {");
+                writeCode("#endif");
+                writeLine("");
 
-            writer.Close();
+                writeTypesForGroup("Application types from method calls", "types_from_methods");
+                writeTypesForGroup("Application types from generic methods", "types_from_generic_methods");
+                writeTypesForGroup("Application types from usages", "types_from_usages");
+                writeTypesForGroup("Application unused value types", "unused_concrete_types");
+
+                writeCode("#if !defined(_GHIDRA_) && !defined(_IDA_)");
+                writeCode("}");
+                writeCode("#endif");
+            }
         }
 
         public void Write(string projectPath) {
@@ -110,96 +135,108 @@ typedef size_t uintptr_t;
             // Write selected Unity API function file to il2cpp-api-functions.h
             // (this is a copy of the header file from an actual Unity install)
             var il2cppApiFile = Path.Combine(srcDataPath, "il2cpp-api-functions.h");
-            var apiHeaderText = model.UnityHeaders.GetAPIHeaderText();
+            var apiHeaderText = _model.UnityHeaders.GetAPIHeaderText();
 
             using var fsApi = new FileStream(il2cppApiFile, FileMode.Create);
-            writer = new StreamWriter(fsApi, Encoding.ASCII);
+            _writer = new StreamWriter(fsApi, Encoding.ASCII);
 
-            writeHeader();
+            using (_writer)
+            {
+                writeHeader();
 
-            // Elide APIs that aren't in the binary to avoid compile errors
-            foreach (var line in apiHeaderText.Split('\n')) {
-                var fnName = UnityHeaders.GetFunctionNameFromAPILine(line);
+                // Elide APIs that aren't in the binary to avoid compile errors
+                foreach (var line in apiHeaderText.Split('\n'))
+                {
+                    var fnName = UnityHeaders.GetFunctionNameFromAPILine(line);
 
-                if (string.IsNullOrEmpty(fnName))
-                    writer.WriteLine(line);
-                else if (model.AvailableAPIs.ContainsKey(fnName))
-                    writer.WriteLine(line);
+                    if (string.IsNullOrEmpty(fnName))
+                        _writer.WriteLine(line);
+                    else if (_model.AvailableAPIs.ContainsKey(fnName))
+                        _writer.WriteLine(line);
+                }
             }
-            writer.Close();
 
             // Write API function pointers to il2cpp-api-functions-ptr.h
             var il2cppFnPtrFile = Path.Combine(srcDataPath, "il2cpp-api-functions-ptr.h");
 
             using var fs2 = new FileStream(il2cppFnPtrFile, FileMode.Create);
-            writer = new StreamWriter(fs2, Encoding.ASCII);
+            _writer = new StreamWriter(fs2, Encoding.ASCII);
 
-            writeHeader();
-            writeSectionHeader("IL2CPP API function pointers");
+            using (_writer)
+            {
+                writeHeader();
+                writeSectionHeader("IL2CPP API function pointers");
 
-            // We could use model.AvailableAPIs here but that would exclude outputting the address
-            // of API exports which for some reason aren't defined in our selected API header,
-            // so although it doesn't affect the C++ compilation, we use GetAPIExports() instead for completeness
-            var exports = model.Package.Binary.APIExports;
+                // We could use _model.AvailableAPIs here but that would exclude outputting the address
+                // of API exports which for some reason aren't defined in our selected API header,
+                // so although it doesn't affect the C++ compilation, we use GetAPIExports() instead for completeness
+                var exports = _model.Package.Binary.APIExports;
 
-            foreach (var export in exports) {
-                writeCode($"#define {export.Key}_ptr 0x{model.Package.BinaryImage.MapVATR(export.Value):X8}");
+                foreach (var export in exports)
+                {
+                    writeCode($"#define {export.Key}_ptr 0x{_model.Package.BinaryImage.MapVATR(export.Value):X8}");
+                }
             }
-
-            writer.Close();
 
             // Write application type definition addresses to il2cpp-types-ptr.h
             var il2cppTypeInfoFile = Path.Combine(srcDataPath, "il2cpp-types-ptr.h");
 
             using var fs3 = new FileStream(il2cppTypeInfoFile, FileMode.Create);
-            writer = new StreamWriter(fs3, Encoding.ASCII);
+            _writer = new StreamWriter(fs3, Encoding.ASCII);
 
-            writeHeader();
-            writeSectionHeader("IL2CPP application-specific type definition addresses");
+            using (_writer)
+            {
+                writeHeader();
+                writeSectionHeader("IL2CPP application-specific type definition addresses");
 
-            foreach (var type in model.Types.Values.Where(t => t.TypeClassAddress != 0xffffffff_ffffffff)) {
-                writeCode($"DO_TYPEDEF(0x{type.TypeClassAddress - model.Package.BinaryImage.ImageBase:X8}, {type.Name});");
+                foreach (var type in _model.Types.Values.Where(t => t.TypeClassAddress != 0xffffffff_ffffffff))
+                {
+                    writeCode($"DO_TYPEDEF(0x{type.TypeClassAddress - _model.Package.BinaryImage.ImageBase:X8}, {type.Name});");
+                }
             }
-
-            writer.Close();
 
             // Write method pointers and signatures to il2cpp-functions.h
             var methodFile = Path.Combine(srcDataPath, "il2cpp-functions.h");
 
             using var fs4 = new FileStream(methodFile, FileMode.Create);
-            writer = new StreamWriter(fs4, Encoding.ASCII);
+            _writer = new StreamWriter(fs4, Encoding.ASCII);
 
-            writeHeader();
-            writeSectionHeader("IL2CPP application-specific method definition addresses and signatures");
+            using (_writer)
+            {
+                writeHeader();
+                writeSectionHeader("IL2CPP application-specific method definition addresses and signatures");
 
-            writeCode("using namespace app;");
-            writeLine("");
+                writeCode("using namespace app;");
+                writeLine("");
 
-            foreach (var method in model.Methods.Values) {
-                if (method.HasCompiledCode) {
-                    var arguments = string.Join(", ", method.CppFnPtrType.Arguments.Select(a => a.Type.Name + " " + (a.Name == "this" ? "__this" : a.Name)));
+                foreach (var method in _model.Methods.Values)
+                {
+                    if (method.HasCompiledCode)
+                    {
+                        var arguments = string.Join(", ", method.CppFnPtrType.Arguments.Select(a => a.Type.Name + " " + (a.Name == "this" ? "__this" : a.Name)));
 
-                    writeCode($"DO_APP_FUNC(0x{method.MethodCodeAddress - model.Package.BinaryImage.ImageBase:X8}, {method.CppFnPtrType.ReturnType.Name}, "
-                              + $"{method.CppFnPtrType.Name}, ({arguments}));");
-                }
+                        writeCode($"DO_APP_FUNC(0x{method.MethodCodeAddress - _model.Package.BinaryImage.ImageBase:X8}, {method.CppFnPtrType.ReturnType.Name}, "
+                                  + $"{method.CppFnPtrType.Name}, ({arguments}));");
+                    }
 
-                if (method.HasMethodInfo) {
-                    writeCode($"DO_APP_FUNC_METHODINFO(0x{method.MethodInfoPtrAddress - model.Package.BinaryImage.ImageBase:X8}, {method.CppFnPtrType.Name}__MethodInfo);");
+                    if (method.HasMethodInfo)
+                    {
+                        writeCode($"DO_APP_FUNC_METHODINFO(0x{method.MethodInfoPtrAddress - _model.Package.BinaryImage.ImageBase:X8}, {method.CppFnPtrType.Name}__MethodInfo);");
+                    }
                 }
             }
-
-            writer.Close();
 
             // Write metadata version
             var versionFile = Path.Combine(srcDataPath, "il2cpp-metadata-version.h");
 
             using var fs5 = new FileStream(versionFile, FileMode.Create);
-            writer = new StreamWriter(fs5, Encoding.ASCII);
+            _writer = new StreamWriter(fs5, Encoding.ASCII);
 
-            writeHeader();
-            writeCode($"#define __IL2CPP_METADATA_VERSION {model.Package.Version * 10:F0}");
-
-            writer.Close();
+            using (_writer)
+            {
+                writeHeader();
+                writeCode($"#define __IL2CPP_METADATA_VERSION {_model.Package.Version * 10:F0}");
+            }
 
             // Write boilerplate code
             File.WriteAllText(Path.Combine(srcFxPath, "dllmain.cpp"), Resources.Cpp_DLLMainCpp);
@@ -251,13 +288,13 @@ typedef size_t uintptr_t;
 
         private void writeHeader() {
             writeLine("// Generated C++ file by Il2CppInspector - http://www.djkaty.com - https://github.com/djkaty");
-            writeLine("// Target Unity version: " + model.UnityHeaders);
+            writeLine("// Target Unity version: " + _model.UnityHeaders);
             writeLine("");
         }
 
         private void writeTypesForGroup(string header, string group) {
             writeSectionHeader(header);
-            foreach (var cppType in model.GetDependencyOrderedCppTypeGroup(group))
+            foreach (var cppType in _model.GetDependencyOrderedCppTypeGroup(group))
                 if (cppType is CppEnumType) {
                     // Ghidra can't process C++ enum base types
                     writeCode("#if defined(_CPLUSPLUS_)");
@@ -271,16 +308,16 @@ typedef size_t uintptr_t;
         }
         
         private void writeCode(string text) {
-            if (model.TargetCompiler == CppCompilerType.MSVC)
-                text = rgxGCCalign.Replace(text, @"__declspec(align($1))");
-            if (model.TargetCompiler == CppCompilerType.GCC)
-                text = rgxMSVCalign.Replace(text, @"__attribute__((aligned($1)))");
+            if (_model.TargetCompiler == CppCompilerType.MSVC)
+                text = GccAlignRegex().Replace(text, @"__declspec(align($1))");
+            else if (_model.TargetCompiler == CppCompilerType.GCC)
+                text = MsvcAlignRegex().Replace(text, @"__attribute__((aligned($1)))");
 
             var lines = text.Replace("\r", "").Split('\n');
-            var cleanLines = lines.Select(s => s.ToEscapedString());
-            var declString = string.Join('\n', cleanLines);
-            if (declString != "")
-                writeLine(declString);
+            //var cleanLines = lines.Select(s => s.ToEscapedString()); Not sure if this is necessary? maybe for some obfuscated assemblies, but those would just fail on other steps
+
+            foreach (var line in lines)
+                writeLine(line);
         }
 
         private void writeSectionHeader(string name) {
@@ -290,6 +327,12 @@ typedef size_t uintptr_t;
             writeLine("");
         }
 
-        private void writeLine(string line) => writer.WriteLine(line);
+        private void writeLine(string line) => _writer.WriteLine(line);
+
+        [GeneratedRegex(@"__attribute__\s*?\(\s*?\(\s*?aligned\s*?\(\s*?([0-9]+)\s*?\)\s*?\)\s*?\)")]
+        private static partial Regex GccAlignRegex();
+
+        [GeneratedRegex(@"__declspec\s*?\(\s*?align\s*?\(\s*?([0-9]+)\s*?\)\s*?\)")]
+        private static partial Regex MsvcAlignRegex();
     }
 }

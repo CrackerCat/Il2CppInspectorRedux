@@ -575,7 +575,7 @@ namespace Il2CppInspector.Cpp
             }
             /* Reserve commonly defined C++ symbols for MSVC DLL projects */
             /* This is not an exhaustive list! (windows.h etc.) */
-            foreach (var symbol in new[] {"_int32", "DEFAULT_CHARSET", "FILETIME", "NULL", "SYSTEMTIME", "stderr", "stdin", "stdout"}) {
+            foreach (var symbol in new[] {"_int8", "_int16", "_int32", "_int64", "DEFAULT_CHARSET", "FILETIME", "NULL", "SYSTEMTIME", "stderr", "stdin", "stdout"}) {
                 ns.ReserveName(symbol);
             }
             /* Reserve builtin keywords in IDA */
@@ -586,7 +586,7 @@ namespace Il2CppInspector.Cpp
                 "__ptr32", "__ptr64", "__pure", "__restrict", "__return_ptr", "__shifted", "__spoils", "__stdcall", "__struct_ptr",
                 "__thiscall", "__thread", "__unaligned", "__usercall", "__userpurge",
                 "_cs", "_ds", "_es", "_ss", "far", "flat", "near",
-                "Mask", "Region", "Pointer", "GC" }) {
+                "Mask", "Region", "Pointer", "GC", "Time" /* wtf? */ }) {
                 ns.ReserveName(keyword);
             }
             /* Reserve builtin keywords for Ghidra */

@@ -383,7 +383,7 @@ namespace Il2CppInspector.Cpp
 
             sb.Append(Name + (Name.Length > 0 ? " " : ""));
 
-            sb.Append("{");
+            sb.Append('{');
             foreach (var field in Fields.Values.SelectMany(f => f)) {
                 var fieldString = field.ToString(format);
                 var suffix = ";";
@@ -399,18 +399,19 @@ namespace Il2CppInspector.Cpp
                     suffix = "";
                 }
 
-                sb.Append("\n    ");
-                foreach (var fieldStr in fieldString.Split('\n'))
+                var parts = fieldString.Split('\n');
+                foreach (var part in parts)
                 {
-                    sb.Append(fieldStr);
                     sb.Append("\n    ");
+                    sb.Append(part);
                 }
+
                 sb.Append(suffix);
             }
 
             sb.Append($"\n}}{(format == "o"? $" /* Size: 0x{SizeBytes:x2} */" : "")};");
 
-            sb.Append("\n");
+            sb.Append('\n');
             return sb.ToString();
         }
     }
