@@ -43,6 +43,11 @@ def DefineArray(jsonDef):
 	MakeArray(addr, int(jsonDef['count']), AsUTF8(jsonDef['type']))
 	SetName(addr, AsUTF8(jsonDef['name']))
 
+def DefineFieldWithValue(jsonDef):
+	addr = ParseAddress(jsonDef)
+	SetName(addr, AsUTF8(jsonDef['name']))
+	SetComment(addr, AsUTF8(jsonDef['value']))
+
 # Process JSON
 def ProcessJSON(jsonData):
 
@@ -95,10 +100,15 @@ def ProcessJSON(jsonData):
 	for d in jsonData['methodInfoPointers']:
 		DefineILMethodInfo(d)
 
-	# FieldInfo
+	# FieldInfo pointers, add the contents as a comment
 	print('Processing FieldInfo pointers')
 	for d in jsonData['fields']:
-		DefineField(d['virtualAddress'], d['name'], r"uint64_t")
+		DefineFieldWithValue(d)
+
+	# FieldRva pointers, add the contents as a comment
+	print('Processing FieldRva pointers')
+	for d in jsonData['fieldRvas']:
+		DefineFieldWithValue(d)
 
 	# Function boundaries
 	print('Processing function boundaries')

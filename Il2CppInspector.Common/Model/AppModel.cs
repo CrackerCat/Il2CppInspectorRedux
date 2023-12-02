@@ -49,9 +49,10 @@ namespace Il2CppInspector.Model
         // Note: Does not include string literals from global-metadata.dat
         // Note: The virtual addresses are of String* (VAs of the pointer to String*) objects, not the strings themselves
         // For il2cpp < 19, the key is the string literal ordinal instead of the address
-        public Dictionary<ulong, string> Strings { get; } = new Dictionary<ulong, string>();
+        public Dictionary<ulong, string> Strings { get; } = [];
 
-        public Dictionary<ulong, string> Fields { get; } = new Dictionary<ulong, string>();
+        public Dictionary<ulong, (string Name, string Value)> Fields { get; } = [];
+        public Dictionary<ulong, (string Name, string Value)> FieldRvas { get; } = []; 
 
         public bool StringIndexesAreOrdinals => Package.Version < 19;
 
@@ -246,18 +247,28 @@ namespace Il2CppInspector.Model
                             Methods[method].MethodInfoPtrAddress = address;
                             break;
 
+                        // FieldInfo is used for array initializers.
+                        // FieldRva is used for span initializers.
                         case MetadataUsageType.FieldInfo or MetadataUsageType.FieldRva:
                             var fieldRef = TypeModel.Package.FieldRefs[usage.SourceIndex];
                             var fieldType = TypeModel.GetMetadataUsageType(usage);
                             var field = fieldType.DeclaredFields.First(f => f.Index == fieldType.Definition.fieldStart + fieldRef.fieldIndex);
-                            
+
+                            var name = usage.Type == MetadataUsageType.FieldInfo
+                                ? $"{fieldType.Name}.{field.Name}".ToCIdentifier()
+                                : $"{fieldType.Name}.{field.Name}_FieldRva".ToCIdentifier();
+
+                            var value = field.HasFieldRVA
+                                ? Convert.ToHexString(Package.Metadata.ReadBytes(
+                                    (long) field.DefaultValueMetadataAddress, field.FieldType.Sizes.nativeSize))
+                                : "";
+
+
                             if (usage.Type == MetadataUsageType.FieldInfo)
-                                Fields.Add(usage.VirtualAddress, $"{fieldType.Name}.{field.Name}".ToCIdentifier());
+                                Fields[usage.VirtualAddress] = (name, value);
                             else
-                            {
-                                var defaultValue = Package.FieldDefaultValue[field.Index];
-                                // TODO: Unsure what it could be used for here. Maybe PID array initializers?
-                            }
+                                FieldRvas[usage.VirtualAddress] = (name, value);
+
                             break;
                     }
                 }

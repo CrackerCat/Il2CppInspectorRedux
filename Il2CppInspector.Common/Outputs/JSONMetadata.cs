@@ -220,13 +220,24 @@ namespace Il2CppInspector.Outputs
         {
             writeArray("fields", () =>
             {
-                foreach (var field in model.Fields)
-                {
-                    writeObject(() =>
-                    {
-                        writeName(field.Key, field.Value);
-                    });
-                }
+                foreach (var (addr, field) in model.Fields)
+                    writeFieldObject(addr, field.Name, field.Value);
+            });
+
+            writeArray("fieldRvas", () =>
+            {
+                foreach (var (addr, rva) in model.FieldRvas)
+                    writeFieldObject(addr, rva.Name, rva.Value);
+            });
+        }
+
+        private void writeFieldObject(ulong addr, string name, string value)
+        {
+            writeObject(() =>
+            {
+                writer.WriteString("virtualAddress", addr.ToAddressString());
+                writer.WriteString("name", name);
+                writer.WriteString("value", value);
             });
         }
 
