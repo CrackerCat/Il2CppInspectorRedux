@@ -48,5 +48,9 @@ namespace Il2CppInspector.Model
         public string Name => CppValueType?.Name ?? CppType?.Name ?? Type.Name.ToCIdentifier();
 
         public override string ToString() => Type.FullName + " -> " + CppType.Name;
+
+        public string ToMangledTypeInfoString() => MangledNameBuilder.TypeInfo(Type);
+
+        public string ToMangledTypeRefString() => MangledNameBuilder.TypeRef(Type);
     }
 }

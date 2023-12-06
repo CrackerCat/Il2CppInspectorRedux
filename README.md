@@ -16,6 +16,10 @@ This is a continuation of [Il2CppInspector, by djkaty](https://github.com/djkaty
 * Support for [ThreadStatic] static fields
 * Better heuristic for detecting metadata usages
 * Performance improvements
+* Slight IDA/Ghidra script improvements:
+    - Made ValueTypes use their non-boxed variants when used as the this parameter
+    - Added labeling of FieldInfo/FieldRva MetadataUsages and their respective values as comments
+    - Implemented name mangling to properly display generics and other normally-replaced characters
 
 ### Main features
 

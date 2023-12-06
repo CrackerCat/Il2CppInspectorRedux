@@ -702,7 +702,9 @@ namespace Il2CppInspector.Reflection
         public bool IsPrimitive => Namespace == "System" && new[] { "Boolean", "Byte", "SByte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "IntPtr", "UIntPtr", "Char", "Decimal", "Double", "Single" }.Contains(Name);
         public bool IsPublic => (Attributes & TypeAttributes.VisibilityMask) == TypeAttributes.Public;
         public bool IsSealed => (Attributes & TypeAttributes.Sealed) == TypeAttributes.Sealed;
+#pragma warning disable SYSLIB0050
         public bool IsSerializable => (Attributes & TypeAttributes.Serializable) == TypeAttributes.Serializable;
+#pragma warning restore SYSLIB0050
         public bool IsSpecialName => (Attributes & TypeAttributes.SpecialName) == TypeAttributes.SpecialName;
         public bool IsValueType => BaseType?.FullName == "System.ValueType";
 

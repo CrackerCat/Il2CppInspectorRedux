@@ -487,7 +487,7 @@ namespace Il2CppInspector.Cpp
             } else {
                 if (declaringType.IsValueType) {
                     // Methods for structs take the boxed object as the this param
-                    paramList.Add(("this", types.GetType(TypeNamer.GetName(declaringType) + "__Boxed *")));
+                    paramList.Add(("this", types.GetType(TypeNamer.GetName(declaringType) + " *"))); // + "__Boxed *")));
                 } else {
                     paramList.Add(("this", AsCType(declaringType)));
                 }

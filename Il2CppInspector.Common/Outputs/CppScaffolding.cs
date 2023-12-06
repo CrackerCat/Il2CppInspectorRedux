@@ -67,7 +67,7 @@ namespace Il2CppInspector.Outputs
                        """);
 
                 if (_useBetterArraySize)
-                    writeCode("#define il2cpp_array_size_t actual_il2cpp_array_size_t");
+                    writeCode("#define actual_il2cpp_array_size_t il2cpp_array_size_t");
 
                 writeSectionHeader("IL2CPP internal types");
                 writeCode(_model.UnityHeaders.GetTypeHeaderText(_model.WordSizeBits));
@@ -82,7 +82,7 @@ namespace Il2CppInspector.Outputs
                                actual_il2cpp_array_size_t value;
                           } better_il2cpp_array_size_t;
                           
-                          #define il2cpp_array_size_t better_il2cpp_array_size_t
+                          #define better_il2cpp_array_size_t il2cpp_array_size_t
                           """);
 
                 if (_model.TargetCompiler == CppCompilerType.MSVC)

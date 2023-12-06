@@ -1,11 +1,13 @@
 ﻿/*
     Copyright 2020-2021 Katy Coe - http://www.djkaty.com - https://github.com/djkaty
-
+    Copyright 2023 LukeFZ - https://github.com/LukeFZ
     All rights reserved.
 */
 
+using System.Diagnostics;
 using Il2CppInspector.Cpp;
 using Il2CppInspector.Reflection;
+using System.Text;
 
 namespace Il2CppInspector.Model
 {
@@ -41,5 +43,8 @@ namespace Il2CppInspector.Model
         }
 
         public override string ToString() => CppFnPtrType.ToSignatureString();
+
+        public string ToMangledString() => MangledNameBuilder.Method(Method);
+        public string ToMangledMethodInfoString() => MangledNameBuilder.MethodInfo(Method);
     }
 }

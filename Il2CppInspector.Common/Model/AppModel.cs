@@ -51,8 +51,8 @@ namespace Il2CppInspector.Model
         // For il2cpp < 19, the key is the string literal ordinal instead of the address
         public Dictionary<ulong, string> Strings { get; } = [];
 
-        public Dictionary<ulong, (string Name, string Value)> Fields { get; } = [];
-        public Dictionary<ulong, (string Name, string Value)> FieldRvas { get; } = []; 
+        public Dictionary<ulong, (FieldInfo Field, string Value)> Fields { get; } = [];
+        public Dictionary<ulong, (FieldInfo Field, string Value)> FieldRvas { get; } = []; 
 
         public bool StringIndexesAreOrdinals => Package.Version < 19;
 
@@ -254,10 +254,6 @@ namespace Il2CppInspector.Model
                             var fieldType = TypeModel.GetMetadataUsageType(usage);
                             var field = fieldType.DeclaredFields.First(f => f.Index == fieldType.Definition.fieldStart + fieldRef.fieldIndex);
 
-                            var name = usage.Type == MetadataUsageType.FieldInfo
-                                ? $"{fieldType.Name}.{field.Name}".ToCIdentifier()
-                                : $"{fieldType.Name}.{field.Name}_FieldRva".ToCIdentifier();
-
                             var value = field.HasFieldRVA
                                 ? Convert.ToHexString(Package.Metadata.ReadBytes(
                                     (long) field.DefaultValueMetadataAddress, field.FieldType.Sizes.nativeSize))
@@ -265,9 +261,9 @@ namespace Il2CppInspector.Model
 
 
                             if (usage.Type == MetadataUsageType.FieldInfo)
-                                Fields[usage.VirtualAddress] = (name, value);
+                                Fields[usage.VirtualAddress] = (field, value);
                             else
-                                FieldRvas[usage.VirtualAddress] = (name, value);
+                                FieldRvas[usage.VirtualAddress] = (field, value);
 
                             break;
                     }
@@ -345,11 +341,8 @@ namespace Il2CppInspector.Model
         // Get the address map for the model
         // This takes a while to construct so we only build it if requested
         private AddressMap addressMap;
-        public AddressMap GetAddressMap() {
-            if (addressMap == null)
-                addressMap = new AddressMap(this);
-            return addressMap;
-        }
+        public AddressMap GetAddressMap()
+            => addressMap ??= new AddressMap(this);
 
         // Get the byte offset in Il2CppClass for this app's Unity version to the vtable
         public int GetVTableOffset() => CppTypeCollection.GetComplexType("Il2CppClass")["vtable"].OffsetBytes;

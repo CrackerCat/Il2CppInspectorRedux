@@ -72,7 +72,7 @@ namespace Il2CppInspector.Outputs
         private void writeMethods(IEnumerable<AppMethod> methods) {
             foreach (var method in methods.Where(m => m.HasCompiledCode)) {
                 writeObject(() => {
-                    writeTypedFunctionName(method.MethodCodeAddress, method.CppFnPtrType.ToSignatureString(), method.CppFnPtrType.Name);
+                    writeTypedFunctionName(method.MethodCodeAddress, method.CppFnPtrType.ToSignatureString(), method.ToMangledString());
                     writeDotNetSignature(method.Method);
                 });
             }
@@ -105,7 +105,7 @@ namespace Il2CppInspector.Outputs
 
                         if (type.TypeClassAddress != 0xffffffff_ffffffff) {
                             writeObject(() => {
-                                writeTypedName(type.TypeClassAddress, $"struct {type.Name}__Class *", $"{type.Name}__TypeInfo");
+                                writeTypedName(type.TypeClassAddress, $"struct {type.Name}__Class *", type.ToMangledTypeInfoString());
                                 writeDotNetTypeName(type.Type);
                             });
                         }
@@ -119,7 +119,7 @@ namespace Il2CppInspector.Outputs
                         if (type.TypeRefPtrAddress != 0xffffffff_ffffffff) {
                             writeObject(() => {
                                 // A generic type definition does not have any direct C++ types, but may have a reference
-                                writeName(type.TypeRefPtrAddress, $"{type.Name}__TypeRef");
+                                writeName(type.TypeRefPtrAddress, type.ToMangledTypeRefString());
                                 writeDotNetTypeName(type.Type);
                             });
                         }
@@ -131,7 +131,7 @@ namespace Il2CppInspector.Outputs
                 () => {
                     foreach (var method in model.Methods.Values.Where(m => m.HasMethodInfo)) {
                         writeObject(() => {
-                            writeName(method.MethodInfoPtrAddress, $"{method.CppFnPtrType.Name}__MethodInfo");
+                            writeName(method.MethodInfoPtrAddress, method.ToMangledMethodInfoString());
                             writeDotNetSignature(method.Method);
                         });
                     }
@@ -221,13 +221,13 @@ namespace Il2CppInspector.Outputs
             writeArray("fields", () =>
             {
                 foreach (var (addr, field) in model.Fields)
-                    writeFieldObject(addr, field.Name, field.Value);
+                    writeFieldObject(addr, (field.Field + "_Field").ToCIdentifier(), field.Value);
             });
 
             writeArray("fieldRvas", () =>
             {
                 foreach (var (addr, rva) in model.FieldRvas)
-                    writeFieldObject(addr, rva.Name, rva.Value);
+                    writeFieldObject(addr, (rva.Field + "_FieldRva").ToCIdentifier(), rva.Value);
             });
         }
 

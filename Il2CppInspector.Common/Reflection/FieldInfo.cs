@@ -6,6 +6,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -68,7 +69,9 @@ namespace Il2CppInspector.Reflection {
         public bool IsLiteral => (Attributes & FieldAttributes.Literal) == FieldAttributes.Literal;
 
         // True if the field has the NonSerialized attribute
+#pragma warning disable SYSLIB0050
         public bool IsNotSerialized => (Attributes & FieldAttributes.NotSerialized) == FieldAttributes.NotSerialized;
+#pragma warning restore SYSLIB0050
 
         // True if the field is extern
         public bool IsPinvokeImpl => (Attributes & FieldAttributes.PinvokeImpl) == FieldAttributes.PinvokeImpl;
