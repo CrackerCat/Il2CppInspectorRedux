@@ -118,9 +118,13 @@ namespace Il2CppInspector.Cpp
             if (ti.IsEnum)
                 VisitFieldStructs(ti.GetEnumUnderlyingType());
 
-            foreach (var fi in ti.DeclaredFields)
-                if (!fi.IsStatic && !fi.IsLiteral && (fi.FieldType.IsEnum || fi.FieldType.IsValueType))
+            foreach (var fi in ti.DeclaredFields.Where(fi => !fi.IsStatic && !fi.IsLiteral))
+            {
+                if (fi.FieldType.IsEnum || fi.FieldType.IsValueType)
                     VisitFieldStructs(fi.FieldType);
+                else if (fi.FieldType.HasElementType)
+                    VisitFieldStructs(fi.FieldType.ElementType);
+            }
 
             TodoFieldStructs.Add(ti);
         }
