@@ -270,6 +270,7 @@ namespace Il2CppInspector.Reflection
             var fqn = t switch
             {
                 Il2CppTypeEnum.IL2CPP_TYPE_IL2CPP_TYPE_INDEX => "System.Type",
+                Il2CppTypeEnum.IL2CPP_TYPE_SZARRAY => "System.Array",
                 _ => (int) t >= Il2CppConstants.FullNameTypeString.Count
                     ? null
                     : Il2CppConstants.FullNameTypeString[(int) t]
@@ -322,7 +323,8 @@ namespace Il2CppInspector.Reflection
 
             // From v24.1 onwards, token was added to Il2CppCustomAttributeTypeRange and each Il2CppImageDefinition noted the CustomAttributeTypeRanges for the image
             // v29 uses this same system but with CustomAttributeDataRanges instead
-            if (!Package.AttributeIndicesByToken[asm.ImageDefinition.customAttributeStart].TryGetValue((uint)token, out var index))
+            if (!Package.AttributeIndicesByToken.TryGetValue(asm.ImageDefinition.customAttributeStart, out var indices)
+                    || !indices.TryGetValue((uint)token, out var index))
                 return -1;
 
             return index;
