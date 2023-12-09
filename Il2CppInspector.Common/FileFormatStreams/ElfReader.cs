@@ -7,11 +7,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using NoisyCowStudios.Bin2Object;
 
 namespace Il2CppInspector
 {
@@ -156,7 +153,17 @@ namespace Il2CppInspector
 
             // Get PHT and SHT
             PHT = ReadArray<TPHdr>(conv.Long(ElfHeader.e_phoff), ElfHeader.e_phnum);
-            SHT = ReadArray<elf_shdr<TWord>>(conv.Long(ElfHeader.e_shoff), ElfHeader.e_shnum);
+
+            try
+            {
+                SHT = ReadArray<elf_shdr<TWord>>(conv.Long(ElfHeader.e_shoff), ElfHeader.e_shnum);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Got exception {ex} while parsing SHT - reverting to PHT");
+                preferPHT = true;
+                SHT = [];
+            }
 
             // Determine if SHT is valid
 
@@ -385,7 +392,7 @@ namespace Il2CppInspector
             StatusUpdate("Processing symbols");
 
             // Three possible symbol tables in ELF files
-            var pTables = new List<(TWord offset, TWord count, TWord strings)>();
+            var pTables = new List<(TWord offset, TWord count, TWord strings, TWord stringsCount)>();
 
             // String table (a sequence of null-terminated strings, total length in sh_size
             var SHT_STRTAB = GetSection(Elf.SHT_STRTAB);
@@ -393,14 +400,12 @@ namespace Il2CppInspector
             if (SHT_STRTAB != null) {
                 // Section header shared object symbol table (.symtab)
                 if (GetSection(Elf.SHT_SYMTAB) is elf_shdr<TWord> SHT_SYMTAB)
-                    pTables.Add((SHT_SYMTAB.sh_offset, conv.Div(SHT_SYMTAB.sh_size, SHT_SYMTAB.sh_entsize), SHT_STRTAB.sh_offset));
+                    pTables.Add((SHT_SYMTAB.sh_offset, conv.Div(SHT_SYMTAB.sh_size, SHT_SYMTAB.sh_entsize), SHT_STRTAB.sh_offset, SHT_STRTAB.sh_size));
                 
                 // Section header executable symbol table (.dynsym)
                 if (GetSection(Elf.SHT_DYNSYM) is elf_shdr<TWord> SHT_DYNSYM)
-                    pTables.Add((SHT_DYNSYM.sh_offset, conv.Div(SHT_DYNSYM.sh_size, SHT_DYNSYM.sh_entsize), SHT_STRTAB.sh_offset));
+                    pTables.Add((SHT_DYNSYM.sh_offset, conv.Div(SHT_DYNSYM.sh_size, SHT_DYNSYM.sh_entsize), SHT_STRTAB.sh_offset, SHT_STRTAB.sh_size));
             }
-
-            var maxStrtabAddr = conv.Add(SHT_STRTAB.sh_offset, SHT_STRTAB.sh_size);
 
             // Symbol table in dynamic section (DT_SYMTAB)
             // Normally the same as .dynsym except that .dynsym may be removed in stripped binaries
@@ -408,17 +413,21 @@ namespace Il2CppInspector
             // Dynamic string table
             if (GetDynamicEntry(Elf.DT_STRTAB) is elf_dynamic<TWord> DT_STRTAB) {
                 if (GetDynamicEntry(Elf.DT_SYMTAB) is elf_dynamic<TWord> DT_SYMTAB) {
-                    // Find the next pointer in the dynamic table to calculate the length of the symbol table
-                    var orderedTable = (from x in DynamicTable where conv.Gt(x.d_un, DT_SYMTAB.d_un) orderby x.d_un select x).ToList();
-                    if (orderedTable.Count != 0)
+                    if (GetDynamicEntry(Elf.DT_STRSZ) is elf_dynamic<TWord> DT_STRSZ)
                     {
-                        var end = orderedTable.First().d_un;
-                        // Dynamic symbol table
-                        pTables.Add((
-                            conv.FromUInt(MapVATR(conv.ULong(DT_SYMTAB.d_un))),
-                            conv.Div(conv.Sub(end, DT_SYMTAB.d_un), Sizeof(typeof(TSym))),
-                            DT_STRTAB.d_un
-                        ));
+                        // Find the next pointer in the dynamic table to calculate the length of the symbol table
+                        var orderedTable = (from x in DynamicTable where conv.Gt(x.d_un, DT_SYMTAB.d_un) orderby x.d_un select x).ToList();
+                        if (orderedTable.Count != 0)
+                        {
+                            var end = orderedTable.First().d_un;
+                            // Dynamic symbol table
+                            pTables.Add((
+                                conv.FromUInt(MapVATR(conv.ULong(DT_SYMTAB.d_un))),
+                                conv.Div(conv.Sub(end, DT_SYMTAB.d_un), Sizeof(typeof(TSym))),
+                                DT_STRTAB.d_un,
+                                DT_STRSZ.d_un
+                            ));
+                        }
                     }
                 }
             }
@@ -432,7 +441,7 @@ namespace Il2CppInspector
 
                 foreach (var symbol in symbol_table)
                 {
-                    if (conv.Gt(conv.FromUInt(symbol.st_name), maxStrtabAddr)) 
+                    if (conv.Gt(conv.FromUInt(symbol.st_name), pTab.stringsCount)) 
                         break; // Skip invalid symbol table indices, since we might read past it on obfuscated binaries
 
                     string name = string.Empty;

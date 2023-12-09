@@ -74,6 +74,7 @@ namespace Il2CppInspector
         DT_RELA = 7,
         DT_RELASZ = 8,
         DT_RELAENT = 9,
+        DT_STRSZ = 10,
         DT_INIT = 12,
         DT_FINI = 13,
         DT_REL = 17,
