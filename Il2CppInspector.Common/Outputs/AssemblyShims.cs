@@ -185,7 +185,7 @@ namespace Il2CppInspector.Outputs
                 Attributes = (TypeAttributes)type.Attributes
             };
             
-            if (mType.IsExplicitLayout)
+            if (mType.IsExplicitLayout || mType.IsSequentialLayout)
                 mType.ClassLayout = new ClassLayoutUser(1, (uint)type.Sizes.nativeSize);
 
             // Add nested types
