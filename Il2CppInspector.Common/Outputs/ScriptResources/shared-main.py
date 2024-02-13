@@ -8,6 +8,7 @@ def define_il_method(jsonDef):
 	set_name(addr, jsonDef['name'])
 	set_function_type(addr, jsonDef['signature'])
 	set_header_comment(addr, jsonDef['dotNetSignature'])
+	add_function_to_group(addr, jsonDef['group'])
 
 def define_il_method_info(jsonDef):
 	addr = parse_address(jsonDef)
@@ -161,6 +162,8 @@ status = StatusHandler()
 status.initialize()
 
 try:
+	start_time = datetime.datetime.now()
+
 	status.update_step("Running script prologue")
 	script_prologue(status)
 
@@ -173,5 +176,6 @@ try:
 	script_epilogue(status)
 
 	status.update_step('Script execution complete.')
+	print(f"Took: {datetime.datetime.now() - start_time}")
 except RuntimeError: pass
 finally: status.close()

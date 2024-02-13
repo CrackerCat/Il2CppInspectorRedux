@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Il2CppInspector.Reflection;
 
 namespace Il2CppInspector.Cpp;
@@ -174,6 +175,8 @@ public class MangledNameBuilder
 
     private void WriteIdentifier(string identifier)
     {
+        identifier = MangledRegex.Gcc.Replace(identifier, "_");
+
         _sb.Append(identifier.Length);
         _sb.Append(identifier);
     }
@@ -201,4 +204,21 @@ public class MangledNameBuilder
     {
         _sb.Append('E');
     }
+}
+
+internal static partial class MangledRegex
+{
+    public static Regex Gcc
+    {
+        get
+        {
+            _gcc ??= GccNameRegex();
+            return _gcc;
+        }
+    }
+
+    private static Regex? _gcc;
+
+    [GeneratedRegex("[^a-zA-Z0-9_]")]
+    public static partial Regex GccNameRegex();
 }

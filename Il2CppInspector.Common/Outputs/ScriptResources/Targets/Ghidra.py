@@ -64,10 +64,11 @@ def script_prologue(status):
 	if currentProgram.getExecutableFormat().endswith('(ELF)'):
 		currentProgram.setImageBase(toAddr(%IMAGE_BASE%), True)
 
-def script_epilogue(status):
-	pass
+def script_epilogue(status): pass
 
 def get_script_directory():
 	return getSourceFile().getParentFile().toString()
+
+def add_function_to_group(addr, group): pass
 
 class StatusWrapper(BaseStatusHandler): pass

@@ -7,19 +7,77 @@ import ida_bytes
 import ida_nalt
 import ida_ida
 import ida_ua
+import ida_segment
 
 try: # 7.7+
 	import ida_srclang
 	IDACLANG_AVAILABLE = True
+	print("IDACLANG available")
 except ImportError:
 	IDACLANG_AVAILABLE = False
 
-import datetime
+try:
+	import ida_dirtree
+	FOLDERS_AVAILABLE = True
+	print("folders available")
+except ImportError:
+	FOLDERS_AVAILABLE = False
+
+cached_genflags = 0
+skip_make_function = False
+func_dirtree = None
+
+def script_prologue(status):
+	global cached_genflags, skip_make_function, func_dirtree
+	# Disable autoanalysis 
+	cached_genflags = ida_ida.inf_get_genflags()
+	ida_ida.inf_set_genflags(cached_genflags & ~ida_ida.INFFL_AUTO)
+
+	# Unload type libraries we know to cause issues - like the c++ linux one
+	PLATFORMS = ["x86", "x64", "arm", "arm64"]
+	PROBLEMATIC_TYPELIBS = ["gnulnx"]
+
+	for lib in PROBLEMATIC_TYPELIBS:
+		for platform in PLATFORMS:
+			ida_typeinf.del_til(f"{lib}_{platform}")
+
+	# Set name mangling to GCC 3.x and display demangled as default
+	ida_ida.inf_set_demnames(ida_ida.DEMNAM_GCC3 | ida_ida.DEMNAM_NAME)
+
+	status.update_step('Processing Types')
+
+	if IDACLANG_AVAILABLE:
+		header_path = os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%")
+		ida_srclang.set_parser_argv("clang", "-x c++ -D_IDACLANG_=1")
+		ida_srclang.parse_decls_with_parser("clang", None, header_path, True)
+	else:
+		original_macros = ida_typeinf.get_c_macros()
+		ida_typeinf.set_c_macros(original_macros + ";_IDA_=1")
+		ida_typeinf.idc_parse_types(os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%"), ida_typeinf.PT_FILE)
+		ida_typeinf.set_c_macros(original_macros)
+
+	# Skip make_function on Windows GameAssembly.dll files due to them predefining all functions through pdata which makes the method very slow
+	skip_make_function = ida_segment.get_segm_by_name(".pdata") is not None
+	if skip_make_function:
+		print(".pdata section found, skipping function boundaries")
+
+	if FOLDERS_AVAILABLE:
+		func_dirtree = ida_dirtree.get_std_dirtree(ida_dirtree.DIRTREE_FUNCS)
+		
+
+def script_epilogue(status):
+	# Reenable auto-analysis
+	global cached_genflags
+	ida_ida.inf_set_genflags(cached_genflags)
 
 def set_name(addr, name):
 	ida_name.set_name(addr, name, ida_name.SN_NOWARN | ida_name.SN_NOCHECK | ida_name.SN_FORCE)
 
 def make_function(start, end = None):
+	global skip_make_function
+	if skip_make_function:
+		return
+
 	ida_bytes.del_items(start, ida_bytes.DELIT_SIMPLE, 12) # Undefine x bytes which should hopefully be enough for the first instruction 
 	ida_ua.create_insn(start) # Create instruction at start
 	if not ida_funcs.add_func(start, end if end is not None else ida_idaapi.BADADDR): # This fails if the function doesn't start with an instruction
@@ -81,44 +139,24 @@ def set_header_comment(addr, comment):
 
 	ida_funcs.set_func_cmt(func, comment, True)
 
-cached_genflags = 0
-
-def script_prologue(status):
-	global cached_genflags
-	# Disable autoanalysis 
-	cached_genflags = ida_ida.inf_get_genflags()
-	ida_ida.inf_set_genflags(cached_genflags & ~ida_ida.INFFL_AUTO)
-
-	# Unload type libraries we know to cause issues - like the c++ linux one
-	PLATFORMS = ["x86", "x64", "arm", "arm64"]
-	PROBLEMATIC_TYPELIBS = ["gnulnx"]
-
-	for lib in PROBLEMATIC_TYPELIBS:
-		for platform in PLATFORMS:
-			ida_typeinf.del_til(f"{lib}_{platform}")
-
-	# Set name mangling to GCC 3.x and display demangled as default
-	ida_ida.inf_set_demnames(ida_ida.DEMNAM_GCC3 | ida_ida.DEMNAM_NAME)
-
-	status.update_step('Processing Types')
-
-	if IDACLANG_AVAILABLE:
-		header_path = os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%")
-		ida_srclang.set_parser_argv("clang", "-x c++ -D_IDACLANG_=1")
-		ida_srclang.parse_decls_with_parser("clang", None, header_path, True)
-	else:
-		original_macros = ida_typeinf.get_c_macros()
-		ida_typeinf.set_c_macros(original_macros + ";_IDA_=1")
-		ida_typeinf.idc_parse_types(os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%"), ida_typeinf.PT_FILE)
-		ida_typeinf.set_c_macros(original_macros)
-
-def script_epilogue(status):
-	# Reenable auto-analysis
-	global cached_genflags
-	ida_ida.inf_set_genflags(cached_genflags)
-
 def get_script_directory():
 	return os.path.dirname(os.path.realpath(__file__))
+
+folders = []
+def add_function_to_group(addr, group):
+	global func_dirtree, folders
+	return
+
+	if not FOLDERS_AVAILABLE:
+		return
+
+	if group not in folders:
+		folders.append(group)
+		func_dirtree.mkdir(group)
+
+	name = ida_funcs.get_func_name(addr)
+	func_dirtree.rename(name, f"{group}/{name}")
+
 
 class StatusHandler(BaseStatusHandler):
 	def __init__(self):

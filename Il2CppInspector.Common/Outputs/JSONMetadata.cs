@@ -74,6 +74,9 @@ namespace Il2CppInspector.Outputs
                 writeObject(() => {
                     writeTypedFunctionName(method.MethodCodeAddress, method.CppFnPtrType.ToSignatureString(), method.ToMangledString());
                     writeDotNetSignature(method.Method);
+
+                    var groupString = $"{method.Method.DeclaringType.Assembly.ShortName}/{method.Method.DeclaringType.FullName.Replace(".", "/")}";
+                    writer.WriteString("group", groupString);
                 });
             }
         }
