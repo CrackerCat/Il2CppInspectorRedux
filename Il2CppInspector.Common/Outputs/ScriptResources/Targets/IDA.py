@@ -1,58 +1,174 @@
 ﻿# IDA-specific implementation
-import idaapi
+import ida_kernwin
+import ida_name
+import ida_idaapi
+import ida_typeinf
+import ida_bytes
+import ida_nalt
+import ida_ida
+import ida_ua
 
-def SetName(addr, name):
-	ret = idc.set_name(addr, name, SN_NOWARN | SN_NOCHECK)
-	if ret == 0:
-		new_name = name + '_' + str(addr)
-		ret = idc.set_name(addr, new_name, SN_NOWARN | SN_NOCHECK)
+try: # 7.7+
+	import ida_srclang
+	IDACLANG_AVAILABLE = True
+except ImportError:
+	IDACLANG_AVAILABLE = False
 
-def MakeFunction(start, name=None, addrMax=None):
-	ida_funcs.add_func(start)
-	#limit end function to maxAddr if any
-	if addrMax is None:
+import datetime
+
+def set_name(addr, name):
+	ida_name.set_name(addr, name, ida_name.SN_NOWARN | ida_name.SN_NOCHECK | ida_name.SN_FORCE)
+
+def make_function(start, end = None):
+	ida_bytes.del_items(start, ida_bytes.DELIT_SIMPLE, 12) # Undefine x bytes which should hopefully be enough for the first instruction 
+	ida_ua.create_insn(start) # Create instruction at start
+	if not ida_funcs.add_func(start, end if end is not None else ida_idaapi.BADADDR): # This fails if the function doesn't start with an instruction
+		print(f"failed to mark function {hex(start)}-{hex(end) if end is not None else '???'} as function")
+
+TYPE_CACHE = {}
+
+def get_type(typeName):
+	if typeName not in TYPE_CACHE:
+		info = ida_typeinf.idc_parse_decl(None, typeName, ida_typeinf.PT_RAWARGS)
+		if info is None:
+			print(f"Failed to create type {typeName}.")
+			return None
+
+		TYPE_CACHE[typeName] = info[1:]
+
+	return TYPE_CACHE[typeName]
+
+TINFO_DEFINITE = 0x0001 # These only exist in idc for some reason, so we redefine it here
+
+def set_type(addr, cppType):
+	cppType += ';'
+
+	info = get_type(cppType)
+	if info is None:
 		return
-	addrEnd = idc.get_func_attr(start,FUNCATTR_END)
-	if addrEnd == idaapi.BADADDR:
+
+	if ida_typeinf.apply_type(None, info[0], info[1], addr, TINFO_DEFINITE) is None:
+		print(f"set_type({hex(addr)}, {cppType}); failed!")
+
+def set_function_type(addr, sig):
+	set_type(addr, sig)
+
+def make_array(addr, numItems, cppType):
+	set_type(addr, cppType)
+
+	flags = ida_bytes.get_flags(addr)
+	if ida_bytes.is_struct(flags):
+		opinfo = ida_nalt.opinfo_t()
+		ida_bytes.get_opcode(opinfo, addr, 0, flags)
+		entrySize = ida_bytes.get_data_elsize(addr, flags, opinfo)
+		tid = opinfo.tid
+	else:
+		entrySize = ida_bytes.get_item_size(addr)
+		tid = ida_idaapi.BADADDR
+
+	ida_bytes.create_data(addr, flags, numItems * entrySize, tid)
+
+def define_code(code):
+	ida_typeinf.idc_parse_types(code)
+
+def set_comment(addr, comment, repeatable = True):
+	ida_bytes.set_cmt(addr, comment, repeatable)
+
+def set_header_comment(addr, comment):
+	func = ida_funcs.get_func(addr)
+	if func is None:
 		return
-	if addrEnd > addrMax:
-		idc.set_func_end(start,addrMax)
 
-def MakeArray(addr, numItems, cppType):
-	SetType(addr, cppType)
-	idc.make_array(addr, numItems)
+	ida_funcs.set_func_cmt(func, comment, True)
 
-def DefineCode(code):
-	idc.parse_decls(code)
+cached_genflags = 0
 
-def SetFunctionType(addr, sig):
-  SetType(addr, sig)
+def script_prologue(status):
+	global cached_genflags
+	# Disable autoanalysis 
+	cached_genflags = ida_ida.inf_get_genflags()
+	ida_ida.inf_set_genflags(cached_genflags & ~ida_ida.INFFL_AUTO)
 
-def SetType(addr, cppType):
-  if not cppType.endswith(';'):
-    cppType += ';'
-  tinfo = idc.parse_decl(cppType,idaapi.PT_RAWARGS)
-  ret = None
-  if not(tinfo is None):
-    ret = idc.apply_type(addr,tinfo)
-  if ret is None:
-    ret = idc.SetType(addr, cppType)
-  if ret is None:
-    print('SetType(0x%x, %r) failed!' % (addr, cppType))
+	# Unload type libraries we know to cause issues - like the c++ linux one
+	PLATFORMS = ["x86", "x64", "arm", "arm64"]
+	PROBLEMATIC_TYPELIBS = ["gnulnx"]
 
-def SetComment(addr, text):
-  idc.set_cmt(addr, text, 1)
+	for lib in PROBLEMATIC_TYPELIBS:
+		for platform in PLATFORMS:
+			ida_typeinf.del_til(f"{lib}_{platform}")
 
-def SetHeaderComment(addr, text):
-  SetComment(addr, text)
+	# Set name mangling to GCC 3.x and display demangled as default
+	ida_ida.inf_set_demnames(ida_ida.DEMNAM_GCC3 | ida_ida.DEMNAM_NAME)
 
-def CustomInitializer():
-	print('Processing Types')
+	status.update_step('Processing Types')
 
-	original_macros = ida_typeinf.get_c_macros()
-	ida_typeinf.set_c_macros(original_macros + ";_IDA_=1")
-	idc.parse_decls(os.path.join(GetScriptDirectory(), "%TYPE_HEADER_RELATIVE_PATH%"), idc.PT_FILE)
-	ida_typeinf.set_c_macros(original_macros)
+	if IDACLANG_AVAILABLE:
+		header_path = os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%")
+		ida_srclang.set_parser_argv("clang", "-x c++ -D_IDACLANG_=1")
+		ida_srclang.parse_decls_with_parser("clang", None, header_path, True)
+	else:
+		original_macros = ida_typeinf.get_c_macros()
+		ida_typeinf.set_c_macros(original_macros + ";_IDA_=1")
+		ida_typeinf.idc_parse_types(os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%"), ida_typeinf.PT_FILE)
+		ida_typeinf.set_c_macros(original_macros)
 
-def GetScriptDirectory():
+def script_epilogue(status):
+	# Reenable auto-analysis
+	global cached_genflags
+	ida_ida.inf_set_genflags(cached_genflags)
+
+def get_script_directory():
 	return os.path.dirname(os.path.realpath(__file__))
+
+class StatusHandler(BaseStatusHandler):
+	def __init__(self):
+		self.step = "Initializing"
+		self.max_items = 0
+		self.current_items = 0
+		self.start_time = datetime.datetime.now()
+		self.step_start_time = self.start_time
+		self.last_updated_time = datetime.datetime.min
+	
+	def initialize(self):
+		ida_kernwin.show_wait_box("Processing")
+
+	def update(self):
+		if self.was_cancelled():
+			raise RuntimeError("Cancelled script.")
+
+		current_time = datetime.datetime.now()
+		if 0.5 > (current_time - self.last_updated_time).total_seconds():
+			return
+
+		self.last_updated_time = current_time
+
+		step_time = current_time - self.step_start_time
+		total_time = current_time - self.start_time
+		message = f"""
+Running IL2CPP script.
+Current Step: {self.step}
+Progress: {self.current_items}/{self.max_items}
+Elapsed: {step_time} ({total_time})
+"""
+
+		ida_kernwin.replace_wait_box(message)
+
+	def update_step(self, step, max_items = 0):
+		print(step)
+
+		self.step = step
+		self.max_items = max_items
+		self.current_items = 0
+		self.step_start_time = datetime.datetime.now()
+		self.last_updated_time = datetime.datetime.min
+		self.update()
+
+	def update_progress(self, new_progress = 1):
+		self.current_items += new_progress
+		self.update()
+
+	def was_cancelled(self):
+		return ida_kernwin.user_cancelled()
+
+	def close(self):
+		ida_kernwin.hide_wait_box()

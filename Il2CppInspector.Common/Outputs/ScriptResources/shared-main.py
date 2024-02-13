@@ -1,155 +1,177 @@
 ﻿# Shared interface
-def AsUTF8(s):
-	return s if sys.version_info[0] > 2 else s.encode('utf-8')
+def from_hex(addr): return int(addr, 0)
 
-def ParseAddress(d):
-	return int(d['virtualAddress'], 0)
+def parse_address(d): return from_hex(d['virtualAddress'])
 
-def DefineILMethod(jsonDef):
-	addr = ParseAddress(jsonDef)
-	SetName(addr, AsUTF8(jsonDef['name']))
-	SetFunctionType(addr, AsUTF8(jsonDef['signature']))
-	SetHeaderComment(addr, AsUTF8(jsonDef['dotNetSignature']))
+def define_il_method(jsonDef):
+	addr = parse_address(jsonDef)
+	set_name(addr, jsonDef['name'])
+	set_function_type(addr, jsonDef['signature'])
+	set_header_comment(addr, jsonDef['dotNetSignature'])
 
-def DefineILMethodInfo(jsonDef):
-	addr = ParseAddress(jsonDef)
-	SetName(addr, AsUTF8(jsonDef['name']))
-	SetType(addr, r'struct MethodInfo *')
-	SetComment(addr, AsUTF8(jsonDef['dotNetSignature']))
+def define_il_method_info(jsonDef):
+	addr = parse_address(jsonDef)
+	set_name(addr, jsonDef['name'])
+	set_type(addr, r'struct MethodInfo *')
+	set_comment(addr, jsonDef['dotNetSignature'])
 
-def DefineCppFunction(jsonDef):
-	addr = ParseAddress(jsonDef)
-	SetName(addr, AsUTF8(jsonDef['name']))
-	SetFunctionType(addr, AsUTF8(jsonDef['signature']))
+def define_cpp_function(jsonDef):
+	addr = parse_address(jsonDef)
+	set_name(addr, jsonDef['name'])
+	set_function_type(addr, jsonDef['signature'])
 
-def DefineString(jsonDef):
-	addr = ParseAddress(jsonDef)
-	SetName(addr, AsUTF8(jsonDef['name']))
-	SetType(addr, r'struct String *')
-	SetComment(addr, AsUTF8(jsonDef['string']))
+def define_string(jsonDef):
+	addr = parse_address(jsonDef)
+	set_name(addr, jsonDef['name'])
+	set_type(addr, r'struct String *')
+	set_comment(addr, jsonDef['string'])
 
-def DefineFieldFromJson(jsonDef):
-	DefineField(jsonDef['virtualAddress'], jsonDef['name'], jsonDef['type'], jsonDef['dotNetType'])
+def define_field(addr, name, type, ilType = None):
+	addr = from_hex(addr)
+	set_name(addr, name)
+	set_type(addr, type)
+	if ilType is not None:
+		set_comment(addr, ilType)
 
-def DefineField(addr, name, type, ilType = None):
-	addr = int(addr, 0)
-	SetName(addr, AsUTF8(name))
-	SetType(addr, AsUTF8(type))
-	if (ilType is not None):
-		SetComment(addr, AsUTF8(ilType))
+def define_field_from_json(jsonDef):
+	define_field(jsonDef['virtualAddress'], jsonDef['name'], jsonDef['type'], jsonDef['dotNetType'])
 
-def DefineArray(jsonDef):
-	addr = ParseAddress(jsonDef)
-	MakeArray(addr, int(jsonDef['count']), AsUTF8(jsonDef['type']))
-	SetName(addr, AsUTF8(jsonDef['name']))
+def define_array(jsonDef):
+	addr = parse_address(jsonDef)
+	make_array(addr, int(jsonDef['count']), jsonDef['type'])
+	set_name(addr, jsonDef['name'])
 
-def DefineFieldWithValue(jsonDef):
-	addr = ParseAddress(jsonDef)
-	SetName(addr, AsUTF8(jsonDef['name']))
-	SetComment(addr, AsUTF8(jsonDef['value']))
+def define_field_with_value(jsonDef):
+	addr = parse_address(jsonDef)
+	set_name(addr, jsonDef['name'])
+	set_comment(addr, jsonDef['value'])
 
 # Process JSON
-def ProcessJSON(jsonData):
-
-	# Method definitions
-	print('Processing method definitions')
-	for d in jsonData['methodDefinitions']:
-		DefineILMethod(d)
-	
-	# Constructed generic methods
-	print('Processing constructed generic methods')
-	for d in jsonData['constructedGenericMethods']:
-		DefineILMethod(d)
-
-	# Custom attributes generators
-	print('Processing custom attributes generators')
-	for d in jsonData['customAttributesGenerators']:
-		DefineCppFunction(d)
-	
-	# Method.Invoke thunks
-	print('Processing Method.Invoke thunks')
-	for d in jsonData['methodInvokers']:
-		DefineCppFunction(d)
-
-	# String literals for version >= 19
-	print('Processing string literals')
-	if 'virtualAddress' in jsonData['stringLiterals'][0]:
-		for d in jsonData['stringLiterals']:
-			DefineString(d)
-
-	# String literals for version < 19
-	else:
-		litDecl = 'enum StringLiteralIndex {\n'
-		for d in jsonData['stringLiterals']:
-			litDecl += "  " + AsUTF8(d['name']) + ",\n"
-		litDecl += '};\n'
-		DefineCode(litDecl)
-	
-	# Il2CppClass (TypeInfo) pointers
-	print('Processing Il2CppClass (TypeInfo) pointers')
-	for d in jsonData['typeInfoPointers']:
-		DefineFieldFromJson(d)
-	
-	# Il2CppType (TypeRef) pointers
-	print('Processing Il2CppType (TypeRef) pointers')
-	for d in jsonData['typeRefPointers']:
-		DefineField(d['virtualAddress'], d['name'], r'struct Il2CppType *', d['dotNetType'])
-	
-	# MethodInfo pointers
-	print('Processing MethodInfo pointers')
-	for d in jsonData['methodInfoPointers']:
-		DefineILMethodInfo(d)
-
-	# FieldInfo pointers, add the contents as a comment
-	print('Processing FieldInfo pointers')
-	for d in jsonData['fields']:
-		DefineFieldWithValue(d)
-
-	# FieldRva pointers, add the contents as a comment
-	print('Processing FieldRva pointers')
-	for d in jsonData['fieldRvas']:
-		DefineFieldWithValue(d)
-
+def process_json(jsonData, status):
 	# Function boundaries
-	print('Processing function boundaries')
 	functionAddresses = jsonData['functionAddresses']
 	functionAddresses.sort()
 	count = len(functionAddresses)
+
+	status.update_step('Processing function boundaries', count)
 	for i in range(count):
-		addrStart = int(functionAddresses[i],0)
-		if addrStart == 0:
+		start = from_hex(functionAddresses[i])
+		if start == 0:
+			status.update_progress()
 			continue
-		addrNext = None
-		if i != count -1:
-			addrNext = int(functionAddresses[i+1],0)
-		MakeFunction(addrStart,None,addrNext)
+
+		end = from_hex(functionAddresses[i + 1]) if i + 1 != count else None
+
+		make_function(start, end)
+		status.update_progress()
+
+	# Method definitions
+	status.update_step('Processing method definitions', len(jsonData['methodDefinitions']))
+	for d in jsonData['methodDefinitions']:
+		define_il_method(d)
+		status.update_progress()
+	
+	# Constructed generic methods
+	status.update_step('Processing constructed generic methods', len(jsonData['constructedGenericMethods']))
+	for d in jsonData['constructedGenericMethods']:
+		define_il_method(d)
+		status.update_progress()
+
+	# Custom attributes generators
+	status.update_step('Processing custom attributes generators', len(jsonData['customAttributesGenerators']))
+	for d in jsonData['customAttributesGenerators']:
+		define_cpp_function(d)
+		status.update_progress()
+	
+	# Method.Invoke thunks
+	status.update_step('Processing Method.Invoke thunks', len(jsonData['methodInvokers']))
+	for d in jsonData['methodInvokers']:
+		define_cpp_function(d)
+		status.update_progress()
+
+	# String literals for version >= 19
+	if 'virtualAddress' in jsonData['stringLiterals'][0]:
+		status.update_step('Processing string literals (V19+)', len(jsonData['stringLiterals']))
+		for d in jsonData['stringLiterals']:
+			define_string(d)
+			status.update_progress()
+
+	# String literals for version < 19
+	else:
+		status.update_step('Processing string literals (pre-V19)')
+		litDecl = 'enum StringLiteralIndex {\n'
+		for d in jsonData['stringLiterals']:
+			litDecl += "  " + d['name'] + ",\n"
+		litDecl += '};\n'
+		define_code(litDecl)
+	
+	# Il2CppClass (TypeInfo) pointers
+	status.update_step('Processing Il2CppClass (TypeInfo) pointers', len(jsonData['typeInfoPointers']))
+	for d in jsonData['typeInfoPointers']:
+		define_field_from_json(d)
+		status.update_progress()
+	
+	# Il2CppType (TypeRef) pointers
+	status.update_step('Processing Il2CppType (TypeRef) pointers', len(jsonData['typeRefPointers']))
+	for d in jsonData['typeRefPointers']:
+		define_field(d['virtualAddress'], d['name'], r'struct Il2CppType *', d['dotNetType'])
+		status.update_progress()
+	
+	# MethodInfo pointers
+	status.update_step('Processing MethodInfo pointers', len(jsonData['methodInfoPointers']))
+	for d in jsonData['methodInfoPointers']:
+		define_il_method_info(d)
+		status.update_progress()
+
+	# FieldInfo pointers, add the contents as a comment
+	status.update_step('Processing FieldInfo pointers', len(jsonData['fields']))
+	for d in jsonData['fields']:
+		define_field_with_value(d)
+		status.update_progress()
+
+	# FieldRva pointers, add the contents as a comment
+	status.update_step('Processing FieldRva pointers', len(jsonData['fieldRvas']))
+	for d in jsonData['fieldRvas']:
+		define_field_with_value(d)
+		status.update_progress()
 
 	# IL2CPP type metadata
-	print('Processing IL2CPP type metadata')
+	status.update_step('Processing IL2CPP type metadata', len(jsonData['typeMetadata']))
 	for d in jsonData['typeMetadata']:
-		DefineField(d['virtualAddress'], d['name'], d['type'])
+		define_field(d['virtualAddress'], d['name'], d['type'])
 	
 	# IL2CPP function metadata
-	print('Processing IL2CPP function metadata')
+	status.update_step('Processing IL2CPP function metadata', len(jsonData['functionMetadata']))
 	for d in jsonData['functionMetadata']:
-		DefineCppFunction(d)
+		define_cpp_function(d)
 
 	# IL2CPP array metadata
-	print('Processing IL2CPP array metadata')
+	status.update_step('Processing IL2CPP array metadata', len(jsonData['arrayMetadata']))
 	for d in jsonData['arrayMetadata']:
-		DefineArray(d)
+		define_array(d)
 
 	# IL2CPP API functions
-	print('Processing IL2CPP API functions')
+	status.update_step('Processing IL2CPP API functions', len(jsonData['apis']))
 	for d in jsonData['apis']:
-		DefineCppFunction(d)
+		define_cpp_function(d)
 
 # Entry point
-print('Generated script file by Il2CppInspector - http://www.djkaty.com - https://github.com/djkaty')
-CustomInitializer()
+print('Generated script file by Il2CppInspectorRedux - https://github.com/LukeFZ (Original Il2CppInspector by http://www.djkaty.com - https://github.com/djkaty)')
+status = StatusHandler()
+status.initialize()
 
-with open(os.path.join(GetScriptDirectory(), "%JSON_METADATA_RELATIVE_PATH%"), "r") as jsonFile:
-	jsonData = json.load(jsonFile)['addressMap']
-	ProcessJSON(jsonData)
+try:
+	status.update_step("Running script prologue")
+	script_prologue(status)
 
-print('Script execution complete.')
+	with open(os.path.join(get_script_directory(), "%JSON_METADATA_RELATIVE_PATH%"), "r") as jsonFile:
+		status.update_step("Loading JSON metadata")
+		jsonData = json.load(jsonFile)['addressMap']
+		process_json(jsonData, status)
+
+	status.update_step("Running script epilogue")
+	script_epilogue(status)
+
+	status.update_step('Script execution complete.')
+except RuntimeError: pass
+finally: status.close()

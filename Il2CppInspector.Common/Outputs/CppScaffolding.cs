@@ -38,13 +38,15 @@ namespace Il2CppInspector.Outputs
             using var fs = new FileStream(typeHeaderFile, FileMode.Create);
             _writer = new StreamWriter(fs, Encoding.ASCII);
 
+            const string decompilerIfDef = "#if !defined(_GHIDRA_) && !defined(_IDA_) && !defined(_IDACLANG_)";
+
             using (_writer)
             {
                 writeHeader();
 
                 // Write primitive type definitions for when we're not including other headers
-                writeCode($$"""
-                       #if defined(_GHIDRA_) || defined(_IDA_)
+                writeCode($"""
+                       #if defined(_GHIDRA_) || defined(_IDA_) || defined(_IDACLANG_)
                        typedef unsigned __int8 uint8_t;
                        typedef unsigned __int16 uint16_t;
                        typedef unsigned __int32 uint32_t;
@@ -55,13 +57,16 @@ namespace Il2CppInspector.Outputs
                        typedef __int64 int64_t;
                        #endif
 
+                       #if defined(_GHIDRA_) || defined(_IDACLANG_)
+                       typedef int{_model.Package.BinaryImage.Bits}_t intptr_t;
+                       typedef uint{_model.Package.BinaryImage.Bits}_t uintptr_t;
+                       #endif
+                       
                        #if defined(_GHIDRA_)
-                       typedef __int{{_model.Package.BinaryImage.Bits}} size_t;
-                       typedef size_t intptr_t;
-                       typedef size_t uintptr_t;
+                       typedef uint{_model.Package.BinaryImage.Bits}_t size_t;
                        #endif
 
-                       #if !defined(_GHIDRA_) && !defined(_IDA_)
+                       {decompilerIfDef}
                        #define _CPLUSPLUS_
                        #endif
                        """);
@@ -101,7 +106,7 @@ namespace Il2CppInspector.Outputs
                 }
 
                 // C does not support namespaces
-                writeCode("#if !defined(_GHIDRA_) && !defined(_IDA_)");
+                writeCode($"{decompilerIfDef}");
                 writeCode("namespace app {");
                 writeCode("#endif");
                 writeLine("");
@@ -111,7 +116,7 @@ namespace Il2CppInspector.Outputs
                 writeTypesForGroup("Application types from usages", "types_from_usages");
                 writeTypesForGroup("Application unused value types", "unused_concrete_types");
 
-                writeCode("#if !defined(_GHIDRA_) && !defined(_IDA_)");
+                writeCode($"{decompilerIfDef}");
                 writeCode("}");
                 writeCode("#endif");
             }
