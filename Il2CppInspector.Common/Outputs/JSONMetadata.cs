@@ -132,10 +132,14 @@ namespace Il2CppInspector.Outputs
             // Metedata usage methods
             writeArray("methodInfoPointers",
                 () => {
-                    foreach (var method in model.Methods.Values.Where(m => m.HasMethodInfo)) {
-                        writeObject(() => {
+                    foreach (var method in model.Methods.Values.Where(m => m.HasMethodInfo))
+                    {
+                        writeObject(() =>
+                        {
                             writeName(method.MethodInfoPtrAddress, method.ToMangledMethodInfoString());
                             writeDotNetSignature(method.Method);
+                            if (method.HasCompiledCode)
+                                writer.WriteString("methodAddress", method.MethodCodeAddress.ToAddressString());
                         });
                     }
                 }, "MethodInfo pointers");

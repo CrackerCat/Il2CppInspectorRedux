@@ -26,9 +26,11 @@ except ImportError:
 cached_genflags = 0
 skip_make_function = False
 func_dirtree = None
+is_32_bit = False
+fake_segments_base = None
 
 def script_prologue(status):
-	global cached_genflags, skip_make_function, func_dirtree
+	global cached_genflags, skip_make_function, func_dirtree, is_32_bit, fake_segments_base
 	# Disable autoanalysis 
 	cached_genflags = ida_ida.inf_get_genflags()
 	ida_ida.inf_set_genflags(cached_genflags & ~ida_ida.INFFL_AUTO)
@@ -63,8 +65,9 @@ def script_prologue(status):
 
 	if FOLDERS_AVAILABLE:
 		func_dirtree = ida_dirtree.get_std_dirtree(ida_dirtree.DIRTREE_FUNCS)
-		
 
+	is_32_bit = ida_ida.inf_is_32bit_exactly()
+		
 def script_epilogue(status):
 	# Reenable auto-analysis
 	global cached_genflags
@@ -159,6 +162,38 @@ def add_function_to_group(addr, group):
 	name = ida_funcs.get_func_name(addr)
 	func_dirtree.rename(name, f"{group}/{name}")
 
+def add_xref(addr, to):
+	ida_xref.add_dref(addr, to, ida_xref.XREF_USER | ida_xref.dr_I)
+
+def write_string(addr, string):
+	encoded_string = string.encode() + b'\x00'
+	string_length = len(encoded_string)
+	ida_bytes.put_bytes(addr, encoded_string)
+	ida_bytes.create_strlit(addr, string_length, ida_nalt.STRTYPE_C)
+
+def write_address(addr, value):
+	global is_32_bit
+
+	if is_32_bit:
+		ida_bytes.put_dword(addr, value)
+	else:
+		ida_bytes.put_qword(addr, value)
+
+def create_fake_segment(name, size):
+	global is_32_bit
+
+	start = ida_ida.inf_get_max_ea()
+	end = start + size
+
+	ida_segment.add_segm(0, start, end, name, "DATA")
+	segment = ida_segment.get_segm_by_name(name)
+	segment.bitness = 1 if is_32_bit else 2
+	segment.perm = ida_segment.SEGPERM_READ
+	segment.update()
+
+	return start
+
+# Status handler
 
 class StatusHandler(BaseStatusHandler):
 	def __init__(self):

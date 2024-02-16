@@ -13,8 +13,11 @@ def define_il_method(jsonDef):
 def define_il_method_info(jsonDef):
 	addr = parse_address(jsonDef)
 	set_name(addr, jsonDef['name'])
-	set_type(addr, r'struct MethodInfo *')
 	set_comment(addr, jsonDef['dotNetSignature'])
+	set_type(addr, r'struct MethodInfo *')
+	if 'methodAddress' in jsonDef:
+		add_xref(from_hex(jsonDef["methodAddress"]), addr)
+		
 
 def define_cpp_function(jsonDef):
 	addr = parse_address(jsonDef)
@@ -24,7 +27,6 @@ def define_cpp_function(jsonDef):
 def define_string(jsonDef):
 	addr = parse_address(jsonDef)
 	set_name(addr, jsonDef['name'])
-	set_type(addr, r'struct String *')
 	set_comment(addr, jsonDef['string'])
 
 def define_field(addr, name, type, ilType = None):
@@ -93,9 +95,26 @@ def process_json(jsonData, status):
 	# String literals for version >= 19
 	if 'virtualAddress' in jsonData['stringLiterals'][0]:
 		status.update_step('Processing string literals (V19+)', len(jsonData['stringLiterals']))
+
+		total_string_length = 0
+		for d in jsonData['stringLiterals']:
+			total_string_length += len(d["string"]) + 1
+		
+		aligned_length = total_string_length + (4096 - (total_string_length % 4096))
+		segment_base = create_fake_segment(".fake_strings", aligned_length)
+
+		current_string_address = segment_base
 		for d in jsonData['stringLiterals']:
 			define_string(d)
+
+			ref_addr = parse_address(d)
+			write_string(current_string_address, d["string"])
+			write_address(ref_addr, current_string_address)
+			set_type(ref_addr, r'const char* const')
+
+			current_string_address += len(d["string"]) + 1
 			status.update_progress()
+
 
 	# String literals for version < 19
 	else:
