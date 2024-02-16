@@ -46,7 +46,7 @@ namespace Il2CppInspector.Outputs
 
                 // Write primitive type definitions for when we're not including other headers
                 writeCode($"""
-                       #if defined(_GHIDRA_) || defined(_IDA_) || defined(_IDACLANG_)
+                       #if defined(_GHIDRA_) || defined(_IDA_)
                        typedef unsigned __int8 uint8_t;
                        typedef unsigned __int16 uint16_t;
                        typedef unsigned __int32 uint32_t;
@@ -56,13 +56,21 @@ namespace Il2CppInspector.Outputs
                        typedef __int32 int32_t;
                        typedef __int64 int64_t;
                        #endif
-
+                       
+                       #ifdef _IDACLANG_ 
+                       typedef unsigned char uint8_t;
+                       typedef unsigned short uint16_t;
+                       typedef unsigned int uint32_t;
+                       typedef unsigned long uint64_t;
+                       typedef char int8_t;
+                       typedef short int16_t;
+                       typedef int int32_t;
+                       typedef long int64_t;
+                       #endif
+                       
                        #if defined(_GHIDRA_) || defined(_IDACLANG_)
                        typedef int{_model.Package.BinaryImage.Bits}_t intptr_t;
                        typedef uint{_model.Package.BinaryImage.Bits}_t uintptr_t;
-                       #endif
-                       
-                       #if defined(_GHIDRA_)
                        typedef uint{_model.Package.BinaryImage.Bits}_t size_t;
                        #endif
 

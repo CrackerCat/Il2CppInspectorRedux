@@ -48,7 +48,7 @@ def script_prologue(status):
 
 	if IDACLANG_AVAILABLE:
 		header_path = os.path.join(get_script_directory(), "%TYPE_HEADER_RELATIVE_PATH%")
-		ida_srclang.set_parser_argv("clang", "-x c++ -D_IDACLANG_=1")
+		ida_srclang.set_parser_argv("clang", "-target x86_64-pc-linux -x c++ -D_IDACLANG_=1") # -target required for 8.3+
 		ida_srclang.parse_decls_with_parser("clang", None, header_path, True)
 	else:
 		original_macros = ida_typeinf.get_c_macros()
@@ -69,6 +69,8 @@ def script_epilogue(status):
 	# Reenable auto-analysis
 	global cached_genflags
 	ida_ida.inf_set_genflags(cached_genflags)
+
+# Utility methods
 
 def set_name(addr, name):
 	ida_name.set_name(addr, name, ida_name.SN_NOWARN | ida_name.SN_NOCHECK | ida_name.SN_FORCE)
