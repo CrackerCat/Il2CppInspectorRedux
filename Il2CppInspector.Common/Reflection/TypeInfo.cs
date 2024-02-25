@@ -415,7 +415,7 @@ namespace Il2CppInspector.Reflection
         private string getScopedFullName(Scope scope)
         {
             // Generic type parameters take precedence over all other names, so if FullName is null (== generic) we can just return the name itself
-            if (IsGenericParameter)
+            if (FullName == null)
                 return this.Name;
             
             // This is the type to be used (generic type parameters have a null FullName)
