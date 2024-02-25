@@ -20,6 +20,13 @@ This is a continuation of [Il2CppInspector, by djkaty](https://github.com/djkaty
     - Made ValueTypes use their non-boxed variants when used as the this parameter
     - Added labeling of FieldInfo/FieldRva MetadataUsages and their respective values as comments
     - Implemented name mangling to properly display generics and other normally-replaced characters
+* Overhauled IDA script:
+    - Added a progress indicator box with the current step, progress, and elapsed time
+    - Much faster processing compared to the old version
+    - Automatic disabling and re-enabling of autoanalysis
+    - Automatic unloading of conflicting type libraries
+    - Addition of custom fake string segment to show string literal contents in decompiler
+    - A fake xref between MethodInfo instances and their corresponding method to quickly get the correct function
 
 ### Main features
 

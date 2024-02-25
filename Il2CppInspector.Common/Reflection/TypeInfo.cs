@@ -412,9 +412,14 @@ namespace Il2CppInspector.Reflection
         }
 
         // Returns the minimally qualified type name required to refer to this type within the specified scope
-        private string getScopedFullName(Scope scope) {
+        private string getScopedFullName(Scope scope)
+        {
+            // Generic type parameters take precedence over all other names, so if FullName is null (== generic) we can just return the name itself
+            if (IsGenericParameter)
+                return this.Name;
+            
             // This is the type to be used (generic type parameters have a null FullName)
-            var usedType = FullName?.Replace('+', '.') ?? Name;
+            var usedType = FullName.Replace('+', '.');
 
             // This is the scope in which this type is currently being used
             // If Scope.Current is null, our scope is at the assembly level
@@ -439,14 +444,14 @@ namespace Il2CppInspector.Reflection
             declaringScope += ".";
             while (usingScope.IndexOf('.', diff) == declaringScope.IndexOf('.', diff)
                    && usingScope.IndexOf('.', diff) != -1
-                   && usingScope.Substring(0, usingScope.IndexOf('.', diff))
-                   == declaringScope.Substring(0, declaringScope.IndexOf('.', diff)))
+                   && usingScope[..usingScope.IndexOf('.', diff)]
+                   == declaringScope[..declaringScope.IndexOf('.', diff)])
                 diff = usingScope.IndexOf('.', diff) + 1;
             usingScope = usingScope.Remove(usingScope.Length - 1);
             declaringScope = declaringScope.Remove(declaringScope.Length - 1);
 
             // This is the mutual root namespace and optionally nested types that the two scopes share
-            var mutualRootScope = usingScope.Substring(0, diff - 1);
+            var mutualRootScope = usingScope[..(diff - 1)];
 
             // Determine if the using scope is a child of the declaring scope (always a child if declaring scope is empty)
             var usingScopeIsChildOfDeclaringScope = string.IsNullOrEmpty(declaringScope) || (usingScope + ".").StartsWith(declaringScope + ".");
@@ -472,7 +477,7 @@ namespace Il2CppInspector.Reflection
             var minimallyScopedName =
                     declaringScope == mutualRootScope ? base.Name :
                     string.IsNullOrEmpty(mutualRootScope) ? declaringScope + '.' + base.Name :
-                    declaringScope.Substring(mutualRootScope.Length + 1) + '.' + base.Name;
+                    string.Concat(declaringScope.AsSpan(mutualRootScope.Length + 1), ".", base.Name);
 
             // Find the outermost type name if the wanted type is a nested type (if we need it below)
             string outerTypeName = "";
@@ -487,7 +492,7 @@ namespace Il2CppInspector.Reflection
             // Otherwise, we just try the unqualified outer (least nested) type name to make sure it's accessible
             // and revert to the fully qualified name if it's hidden
             var nsAndTypeHierarchy = usingScopeIsChildOfDeclaringScope ?
-                usingDirective.Split('.').Append(minimallyScopedName).ToArray()
+                [.. usingDirective.Split('.'), minimallyScopedName]
                 : new[] { outerTypeName };
 
             var hidden = true;
@@ -548,24 +553,24 @@ namespace Il2CppInspector.Reflection
                 .Select(ns => (!string.IsNullOrEmpty(ns)? ns + "." : "") + minimallyScopedName).ToList() ?? new List<string>();
 
             if (Assembly.Model.Namespaces.Intersect(checkNamespaces).Any())
-                minimallyScopedName = mutualRootScope.Length > 0 ? usedType.Substring(mutualRootScope.Length + 1) : usedType;
+                minimallyScopedName = mutualRootScope.Length > 0 ? usedType[(mutualRootScope.Length + 1)..] : usedType;
 
             // Check current namespace and all ancestors too
             else {
                 checkNamespaces.Clear();
                 var ancestorUsingScope = "." + usingScope;
-                while (ancestorUsingScope.IndexOf(".", StringComparison.Ordinal) != -1) {
-                    ancestorUsingScope = ancestorUsingScope.Substring(0, ancestorUsingScope.LastIndexOf(".", StringComparison.Ordinal));
-                    checkNamespaces.Add((ancestorUsingScope.Length > 0 ? ancestorUsingScope.Substring(1) + "." : "") + minimallyScopedName);
+                while (ancestorUsingScope.Contains('.')) {
+                    ancestorUsingScope = ancestorUsingScope[..ancestorUsingScope.LastIndexOf('.')];
+                    checkNamespaces.Add((ancestorUsingScope.Length > 0 ? ancestorUsingScope[1..] + "." : "") + minimallyScopedName);
                 }
 
                 if (Assembly.Model.Namespaces.Intersect(checkNamespaces).Any())
-                    minimallyScopedName = mutualRootScope.Length > 0 ? usedType.Substring(mutualRootScope.Length + 1) : "global::" + usedType;
+                    minimallyScopedName = mutualRootScope.Length > 0 ? usedType[(mutualRootScope.Length + 1)..] : "global::" + usedType;
             }
 
             // If the final name starts with ".", it's a reference to the global namespace (ie. unnamed root namespace)
-            if (minimallyScopedName.StartsWith("."))
-                minimallyScopedName = "global::" + minimallyScopedName.Substring(1);
+            if (minimallyScopedName.StartsWith('.'))
+                minimallyScopedName = "global::" + minimallyScopedName[1..];
 
             return minimallyScopedName;
         }
