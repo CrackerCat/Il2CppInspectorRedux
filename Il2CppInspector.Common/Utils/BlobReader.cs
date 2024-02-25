@@ -2,6 +2,7 @@
 using System.Text;
 using System;
 using System.Diagnostics;
+using System.IO;
 
 namespace Il2CppInspector.Utils;
 
@@ -33,14 +34,10 @@ public static class BlobReader
                 value = blob.ReadInt16();
                 break;
             case Il2CppTypeEnum.IL2CPP_TYPE_U4:
-                value = blob.Version >= 29
-                    ? blob.ReadCompressedUInt32()
-                    : blob.ReadUInt32();
+                value = ReadUInt32();
                 break;
             case Il2CppTypeEnum.IL2CPP_TYPE_I4:
-                value = blob.Version >= 29
-                    ? blob.ReadCompressedInt32()
-                    : blob.ReadInt32();
+                value = ReadInt32();
                 break;
             case Il2CppTypeEnum.IL2CPP_TYPE_U8:
                 value = blob.ReadUInt64();
@@ -55,19 +52,13 @@ public static class BlobReader
                 value = blob.ReadDouble();
                 break;
             case Il2CppTypeEnum.IL2CPP_TYPE_STRING:
-                var uiLen = blob.Version >= 29
-                    ? blob.ReadCompressedInt32()
-                    : blob.ReadInt32();
-
+                var uiLen = ReadInt32();
                 if (uiLen != -1)
                     value = Encoding.UTF8.GetString(blob.ReadBytes(uiLen));
 
                 break;
             case Il2CppTypeEnum.IL2CPP_TYPE_SZARRAY:
-                var length = blob.Version >= 29
-                ? blob.ReadCompressedInt32()
-                : blob.ReadInt32();
-
+                var length = ReadInt32();
                 if (length == -1)
                     break;
 
@@ -117,6 +108,46 @@ public static class BlobReader
         }
 
         return value;
+
+        int ReadInt32()
+        {
+            if (blob.Version >= 29)
+            {
+                var address = blob.Position;
+
+                try
+                {
+                    return blob.ReadCompressedInt32();
+                }
+                catch (InvalidDataException)
+                {
+                    Console.WriteLine($"Found invalid compressed int at metadata address 0x{address:x8}. Reading as normal int.");
+                    return blob.ReadInt32(address);
+                }
+            }
+
+            return blob.ReadInt32();
+        }
+
+        uint ReadUInt32()
+        {
+            if (blob.Version >= 29)
+            {
+                var address = blob.Position;
+
+                try
+                {
+                    return blob.ReadCompressedUInt32();
+                }
+                catch (InvalidDataException)
+                {
+                    Console.WriteLine($"Found invalid compressed uint at metadata address 0x{address:x8}. Reading as normal uint.");
+                    return blob.ReadUInt32(address);
+                }
+            }
+
+            return blob.ReadUInt32();
+        }
     }
 
     public static Il2CppTypeEnum ReadEncodedTypeEnum(Il2CppInspector inspector, BinaryObjectStream blob,
