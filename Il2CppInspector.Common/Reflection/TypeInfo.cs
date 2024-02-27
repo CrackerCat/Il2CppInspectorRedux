@@ -414,10 +414,6 @@ namespace Il2CppInspector.Reflection
         // Returns the minimally qualified type name required to refer to this type within the specified scope
         private string getScopedFullName(Scope scope)
         {
-            // Generic type parameters take precedence over all other names, so if FullName is null (== generic) we can just return the name itself
-            if (FullName == null)
-                return this.Name;
-            
             // This is the type to be used (generic type parameters have a null FullName)
             var usedType = FullName.Replace('+', '.');
 
@@ -581,8 +577,8 @@ namespace Il2CppInspector.Reflection
             if (usingScope == null)
                 return CSharpName;
 
-            // Generic parameters don't have a scope
-            if (IsGenericParameter)
+            // Generic parameters (or generic arrays) don't have a scope
+            if (HasNoScope)
                 return CSharpName;
 
             var s = Namespace + "." + base.Name;
@@ -715,6 +711,8 @@ namespace Il2CppInspector.Reflection
 
         // Helper function for determining if using this type as a field, parameter etc. requires that field or method to be declared as unsafe
         public bool RequiresUnsafeContext => IsPointer || (HasElementType && ElementType.RequiresUnsafeContext);
+
+        public bool HasNoScope => IsGenericParameter || (HasElementType && ElementType.HasNoScope);
 
         // May get overridden by Il2CppType-based constructor below
         public override MemberTypes MemberType { get; } = MemberTypes.TypeInfo;
